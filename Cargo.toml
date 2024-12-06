@@ -1,9 +1,11 @@
 [package]
 name = "omni-transaction"
 version = "0.1.0"
-authors = ["Pagoda <hello@pagoda.co>"]
+authors = ["Proximity Labs <hello@proximity.dev>"]
+license = "Apache-2.0"
 edition = "2021"
-publish = false
+repository = "https://github.com/near/omni-transaction-rs"
+description = "Transaction builder for all chains in Rust"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
