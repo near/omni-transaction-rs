@@ -63,6 +63,13 @@ bitcoin = { version = "0.32.0", default-features = false, features = [
     "secp-lowmemory",
     "secp-recovery",
 ] }
+k256 = { version = "0.13.1", features = [
+    "sha256",
+    "ecdsa",
+    "serde",
+    "arithmetic",
+    "expose-field",
+] }
 
 # async
 tokio = { version = "1.38", features = ["full"] }
