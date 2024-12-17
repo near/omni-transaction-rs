@@ -46,7 +46,7 @@ pub fn build_script_sig(der_signature: &[u8], public_key_bytes: &[u8]) -> Vec<u8
 pub fn serialize_ecdsa_signature(signature_bytes: &[u8], sighash_type: u8) -> Vec<u8> {
     // 1. Encode the signature as DER format
     let mut der_signature = encode_signature_as_der(signature_bytes);
-    
+
     // 2. Append the SIGHASH type
     der_signature.push(sighash_type);
 
@@ -64,7 +64,7 @@ pub fn serialize_ecdsa_signature_from_str(big_r: &str, s: &str) -> Vec<u8> {
     signature_bytes.extend_from_slice(&s_bytes);
 
     // Serialize the signature using the custom function
-   serialize_ecdsa_signature(&signature_bytes, 0x01) // 0x01 = SIGHASH_ALL
+    serialize_ecdsa_signature(&signature_bytes, 0x01) // 0x01 = SIGHASH_ALL
 }
 
 #[cfg(test)]
@@ -73,8 +73,8 @@ mod tests {
     use bitcoin::script::Builder;
     use bitcoin::secp256k1::ecdsa::Signature;
     use bitcoin::secp256k1::{self};
-    use omni_testing_utilities::address::{self, DerivedAddress};
     use k256::elliptic_curve::sec1::ToEncodedPoint;
+    use omni_testing_utilities::address::{self, DerivedAddress};
 
     #[test]
     fn test_create_signature() {
@@ -94,9 +94,8 @@ mod tests {
         let serialized_with_custom_function = serialize_ecdsa_signature_from_str(big_r, s);
 
         assert_eq!(
-            serialized_with_custom_function, 
-            serialized_with_bitcoin_bytes, 
-            "Las firmas no coinciden entre serialize_ecdsa_signature y bitcoin::Signature::serialize()"
+            serialized_with_custom_function,
+            serialized_with_bitcoin_bytes
         );
     }
 
@@ -104,7 +103,8 @@ mod tests {
     fn test_script_sig() {
         const PATH: &str = "bitcoin-1";
 
-        let derived_address = address::get_derived_address(&"omnitester.testnet".parse().unwrap(), PATH);
+        let derived_address =
+            address::get_derived_address(&"omnitester.testnet".parse().unwrap(), PATH);
 
         let big_r = "03B96BFA3DA6BB4BB74EEEE9C20970725C5782F07724CD1BEFBD265C5AD5C63948";
         let s = "49283B618968DEFB0E660EA703D193BC1D213F5DD811A2D13307FCA01E20C5C0";
@@ -118,27 +118,23 @@ mod tests {
 
         let result = build_script_sig_as_bytes(&derived_address, signature);
 
-        println!("ScriptSig1: {:?}", result);
-
-         // Serialize the signature using the custom function
-         let serialized_with_custom_function = serialize_ecdsa_signature_from_str(big_r, s);
+        // Serialize the signature using the custom function
+        let serialized_with_custom_function = serialize_ecdsa_signature_from_str(big_r, s);
 
         let compressed_key = get_uncompressed_bitcoin_pubkey(&derived_address);
 
         let result2 = build_script_sig(&serialized_with_custom_function, compressed_key.as_slice());
-        println!("ScriptSig2: {:?}", result2);
 
         assert_eq!(result, result2);
-
     }
 
     pub fn get_uncompressed_bitcoin_pubkey(derived_address: &DerivedAddress) -> Vec<u8> {
         let derived_public_key_bytes = derived_address.public_key.to_encoded_point(false); // no comprimida
         let derived_public_key_bytes_array = derived_public_key_bytes.as_bytes();
-        
+
         let secp_pubkey = bitcoin::secp256k1::PublicKey::from_slice(derived_public_key_bytes_array)
-            .expect("Clave pública inválida.");
-        
+            .expect("Invalid public key");
+
         secp_pubkey.serialize_uncompressed().to_vec()
     }
 
@@ -176,14 +172,14 @@ mod tests {
         let derived_public_key_bytes_array = derived_public_key_bytes.as_bytes();
         let secp_pubkey = bitcoin::secp256k1::PublicKey::from_slice(derived_public_key_bytes_array)
             .expect("Invalid public key");
-    
+
         let bitcoin_pubkey = bitcoin::PublicKey::new_uncompressed(secp_pubkey);
-    
+
         let script_sig_new = Builder::new()
             .push_slice(signature.serialize())
             .push_key(&bitcoin_pubkey)
             .into_script();
-    
+
         script_sig_new.as_bytes().to_vec()
     }
 }
