@@ -6,5 +6,6 @@ pub mod evm;
 pub mod near;
 
 pub mod constants;
+pub mod signer;
 pub mod transaction_builder;
 pub mod types;
