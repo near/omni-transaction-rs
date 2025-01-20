@@ -9,7 +9,7 @@ use omni_transaction::near::types::{
 };
 use omni_transaction::near::utils::PublicKeyStrExt;
 use omni_transaction::transaction_builder::{TransactionBuilder, TxBuilder};
-use omni_transaction::types::NEAR;
+use omni_transaction::transaction_builders::NEAR;
 use sha2::Digest;
 use tokio::time;
 

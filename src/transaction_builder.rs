@@ -1,3 +1,4 @@
+//! High level transaction builder that can be used to build transactions for different chains.
 pub trait TxBuilder<T> {
     fn build(&self) -> T;
 }
@@ -24,7 +25,7 @@ mod tests {
     };
     use crate::{
         evm::utils::parse_eth_address,
-        types::{EVM, NEAR},
+        transaction_builders::{EVM, NEAR},
     };
     use alloy::{
         consensus::SignableTransaction,

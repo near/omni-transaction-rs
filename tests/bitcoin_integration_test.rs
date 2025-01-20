@@ -22,7 +22,7 @@ use omni_transaction::bitcoin::types::{
 };
 use omni_transaction::transaction_builder::TransactionBuilder;
 use omni_transaction::transaction_builder::TxBuilder;
-use omni_transaction::types::BITCOIN;
+use omni_transaction::transaction_builders::BITCOIN;
 // Testing
 use eyre::Result;
 use serde_json::json;

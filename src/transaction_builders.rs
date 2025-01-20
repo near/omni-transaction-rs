@@ -1,3 +1,4 @@
+//! Low level transaction builders for different blockchains.
 #[cfg(feature = "bitcoin")]
 use crate::bitcoin::bitcoin_transaction_builder::BitcoinTransactionBuilder;
 
