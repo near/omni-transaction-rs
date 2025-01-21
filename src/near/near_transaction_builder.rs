@@ -1,3 +1,4 @@
+//! Transaction builder for NEAR transactions
 use super::{
     near_transaction::NearTransaction,
     types::{Action, BlockHash, PublicKey},

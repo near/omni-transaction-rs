@@ -1,3 +1,4 @@
+//! Types used by the NEAR transaction builder
 mod actions;
 mod block_hash;
 pub mod integers;

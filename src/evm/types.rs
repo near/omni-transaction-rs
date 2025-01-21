@@ -1,3 +1,4 @@
+//! Types used by the EVM transaction builder.
 use near_sdk::serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
 

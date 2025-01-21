@@ -1,3 +1,4 @@
+//! Bitcoin transaction
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
@@ -57,7 +58,7 @@ impl BitcoinTransaction {
         buffer
     }
 
-    // Legacy
+    /// Function to encode the legacy transaction
     pub fn build_for_signing_legacy(&self, sighash_type: EcdsaSighashType) -> Vec<u8> {
         let mut buffer = Vec::new();
 
@@ -69,6 +70,7 @@ impl BitcoinTransaction {
         buffer
     }
 
+    /// Function to attach a script sig to the transaction
     pub fn build_with_script_sig(
         &mut self,
         input_index: usize,
@@ -90,7 +92,7 @@ impl BitcoinTransaction {
         buffer
     }
 
-    // Segwit
+    /// Function to encode the transaction for signing in SegWit format
     pub fn build_for_signing_segwit(
         &self,
         sighash_type: EcdsaSighashType,
@@ -112,6 +114,7 @@ impl BitcoinTransaction {
         buffer
     }
 
+    /// Function to attach a witness to the transaction
     pub fn build_with_witness(
         &mut self,
         input_index: usize,

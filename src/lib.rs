@@ -1,8 +1,6 @@
 //! # Omni Transaction
 //! `Omni-Transaction` is a library to construct transactions for different chains inside Near contracts and Rust clients.
 //!
-//! It is a lightweight library that allows you to build transactions for different chains like NEAR, EVM, and Bitcoin.
-//!
 //! The library is designed to be modular and extensible, allowing you to add support for new chains easily.
 //!
 //! ### Supported chains:

@@ -1,3 +1,4 @@
+//! Transaction builder for Bitcoin transactions
 use super::{
     bitcoin_transaction::BitcoinTransaction,
     types::{LockTime, TxIn, TxOut, Version},

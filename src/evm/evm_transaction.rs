@@ -1,3 +1,4 @@
+//! EVM transaction
 use near_sdk::serde::{Deserialize, Serialize};
 use rlp::RlpStream;
 use schemars::JsonSchema;

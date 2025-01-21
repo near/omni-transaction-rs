@@ -1,3 +1,4 @@
+//! Utility functions for serialization and encoding of EVM data structures
 use hex;
 
 use super::types::Address;

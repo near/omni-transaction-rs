@@ -1,3 +1,4 @@
+//! Transaction builder for EVM transactions
 use crate::transaction_builder::TxBuilder;
 
 use super::{

@@ -1,3 +1,4 @@
+//! Utility functions for serialization and encoding of Bitcoin data structures
 fn encode_signature_as_der(signature_bytes: &[u8]) -> Vec<u8> {
     assert_eq!(
         signature_bytes.len(),
@@ -32,6 +33,7 @@ fn encode_asn1_integer(bytes: &[u8]) -> Vec<u8> {
     result
 }
 
+/// Build the scriptSig from the DER signature and the public key
 pub fn build_script_sig(der_signature: &[u8], public_key_bytes: &[u8]) -> Vec<u8> {
     let mut script_sig = vec![];
     script_sig.push(der_signature.len() as u8);
@@ -43,6 +45,7 @@ pub fn build_script_sig(der_signature: &[u8], public_key_bytes: &[u8]) -> Vec<u8
     script_sig
 }
 
+/// Serialize the ECDSA signature from the raw bytes and the SIGHASH type
 pub fn serialize_ecdsa_signature(signature_bytes: &[u8], sighash_type: u8) -> Vec<u8> {
     // 1. Encode the signature as DER format
     let mut der_signature = encode_signature_as_der(signature_bytes);
@@ -53,6 +56,7 @@ pub fn serialize_ecdsa_signature(signature_bytes: &[u8], sighash_type: u8) -> Ve
     der_signature
 }
 
+/// Serialize the ECDSA signature from string representations of big R and S
 pub fn serialize_ecdsa_signature_from_str(big_r: &str, s: &str) -> Vec<u8> {
     // Generate the signature bytes from the hex strings
     let big_r_bytes = hex::decode(big_r).unwrap();
