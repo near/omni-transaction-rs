@@ -1,12 +1,12 @@
 //! Low level transaction builders for different blockchains.
 #[cfg(feature = "bitcoin")]
-use crate::bitcoin::bitcoin_transaction_builder::BitcoinTransactionBuilder;
+use crate::bitcoin::BitcoinTransactionBuilder;
 
 #[cfg(feature = "evm")]
-use crate::evm::evm_transaction_builder::EVMTransactionBuilder;
+use crate::evm::EVMTransactionBuilder;
 
 #[cfg(feature = "near")]
-use crate::near::near_transaction_builder::NearTransactionBuilder;
+use crate::near::NearTransactionBuilder;
 
 #[cfg(feature = "near")]
 pub type NEAR = NearTransactionBuilder;

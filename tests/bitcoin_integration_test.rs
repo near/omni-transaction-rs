@@ -13,16 +13,16 @@ use omni_testing_utilities::bitcoin::setup_bitcoin_testnet;
 use omni_testing_utilities::bitcoin::BTCTestContext;
 use omni_testing_utilities::bitcoind::AddressType;
 // Omni library
-use omni_transaction::bitcoin::bitcoin_transaction::BitcoinTransaction;
 use omni_transaction::bitcoin::types::{
     Amount as OmniAmount, EcdsaSighashType as OmniSighashType, Hash as OmniHash,
     LockTime as OmniLockTime, OutPoint as OmniOutPoint, ScriptBuf as OmniScriptBuf,
     Sequence as OmniSequence, TransactionType, TxIn as OmniTxIn, TxOut as OmniTxOut,
     Txid as OmniTxid, Version as OmniVersion, Witness as OmniWitness,
 };
-use omni_transaction::transaction_builder::TransactionBuilder;
-use omni_transaction::transaction_builder::TxBuilder;
-use omni_transaction::transaction_builders::BITCOIN;
+use omni_transaction::bitcoin::BitcoinTransaction;
+use omni_transaction::TransactionBuilder;
+use omni_transaction::TxBuilder;
+use omni_transaction::BITCOIN;
 // Testing
 use eyre::Result;
 use serde_json::json;

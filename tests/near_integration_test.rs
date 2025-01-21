@@ -8,8 +8,8 @@ use omni_transaction::near::types::{
     Action, ED25519Signature, Signature as OmniSignature, TransferAction,
 };
 use omni_transaction::near::utils::PublicKeyStrExt;
-use omni_transaction::transaction_builder::{TransactionBuilder, TxBuilder};
-use omni_transaction::transaction_builders::NEAR;
+use omni_transaction::NEAR;
+use omni_transaction::{TransactionBuilder, TxBuilder};
 use sha2::Digest;
 use tokio::time;
 

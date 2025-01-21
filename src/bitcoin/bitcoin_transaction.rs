@@ -1,4 +1,3 @@
-//! Bitcoin transaction
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
@@ -13,6 +12,58 @@ use super::{
     },
 };
 
+///
+/// ###### Example:
+///
+/// You can create a Bitcoin transaction directly in your NEAR contract or Rust client
+/// or you can do it from a JSON.
+///
+/// ```rust
+/// // The first case would be as follows:
+/// let omni_tx = BitcoinTransaction {
+///     version: Version::One,
+///     lock_time: LockTime::from_height(1000000).unwrap(),
+///     input: vec![TxIn {
+///         previous_output: OutPoint {
+///             txid: Txid(Hash::all_zeros()),
+///             vout: 0,
+///         },
+///         script_sig: ScriptBuf::default(),
+///         sequence: Sequence::default(),
+///         witness: Witness::default(),
+///     }],
+///    output: vec![TxOut {
+///        value: Amount::from_sat(10000),
+///         script_pubkey: ScriptBuf::default(),
+///    }],
+/// };
+///
+/// // If you prefer to do it from a JSON:
+/// let json_value = r#"
+/// {
+///     "version": "1",
+///     "lock_time": "0",
+///     "input": [{
+///         "previous_output": {
+///             "txid": "bc25cc0dddd0a202c21e66521a692c0586330a9a9dcc38ccd9b4d2093037f31a",
+///             "vout": 0
+///         },
+///         "script_sig": [],
+///         "sequence": 4294967295,
+///         "witness": []
+///    }],s
+///     "output": [{
+///         "value": 1,
+///         "script_pubkey": "76a9148356ecd5f1761e60c144dc2f4de6bf7d8be7690688ad"
+///     },   
+///     {
+///         "value": 2649,
+///         "script_pubkey": "76a9148356ecd5f1761e60c144dc2f4de6bf7d8be7690688ac"
+///    }]
+/// }
+/// "#;
+/// let tx = BitcoinTransaction::from_json(json_value).unwrap();
+///
 #[derive(
     Debug,
     Clone,
@@ -49,7 +100,7 @@ fn sha256d(data: &[u8]) -> Vec<u8> {
 }
 
 impl BitcoinTransaction {
-    // Common
+    /// Encode the transaction into a vector of bytes
     pub fn serialize(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
 
@@ -58,7 +109,7 @@ impl BitcoinTransaction {
         buffer
     }
 
-    /// Function to encode the legacy transaction
+    /// Encode a legacy transaction into a vector of bytes
     pub fn build_for_signing_legacy(&self, sighash_type: EcdsaSighashType) -> Vec<u8> {
         let mut buffer = Vec::new();
 
@@ -70,7 +121,7 @@ impl BitcoinTransaction {
         buffer
     }
 
-    /// Function to attach a script sig to the transaction
+    /// Attach a script sig to the transaction
     pub fn build_with_script_sig(
         &mut self,
         input_index: usize,
@@ -92,7 +143,7 @@ impl BitcoinTransaction {
         buffer
     }
 
-    /// Function to encode the transaction for signing in SegWit format
+    /// Encode the transaction for signing in SegWit format
     pub fn build_for_signing_segwit(
         &self,
         sighash_type: EcdsaSighashType,
@@ -209,6 +260,7 @@ impl BitcoinTransaction {
         self.input.is_empty()
     }
 
+    /// Serialise a JSON representation of the transaction into a BitcoinTransaction struct
     pub fn from_json(json: &str) -> Result<Self, near_sdk::serde_json::Error> {
         let tx: Self = near_sdk::serde_json::from_str(json)?;
         Ok(tx)
@@ -440,7 +492,6 @@ mod tests {
         };
 
         let serialized = omni_tx.build_for_signing_legacy(OmniSighashType::All);
-        println!("serialized BTC Omni: {:?}", serialized);
 
         assert_eq!(buffer.len(), serialized.len());
         assert_eq!(buffer, serialized);

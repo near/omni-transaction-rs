@@ -138,5 +138,13 @@ pub mod evm;
 #[cfg(feature = "near")]
 pub mod near;
 mod signer;
-pub mod transaction_builder;
-pub mod transaction_builders;
+mod transaction_builder;
+mod transaction_builders;
+
+pub use transaction_builder::{TransactionBuilder, TxBuilder};
+/// Alias for BitcoinTransactionBuilder
+pub use transaction_builders::BITCOIN;
+/// Alias for EVMTransactionBuilder
+pub use transaction_builders::EVM;
+/// Alias for NearTransactionBuilder
+pub use transaction_builders::NEAR;
