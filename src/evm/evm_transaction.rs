@@ -8,6 +8,31 @@ use crate::constants::EIP_1559_TYPE;
 use super::types::{AccessList, Address, Signature};
 use super::utils::parse_eth_address;
 
+///
+/// ###### Example:
+///
+/// ```rust
+/// let nonce: u64 = 0;
+/// let to: Address = address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
+/// let value = 10000000000000000u128; // 0.01 ETH
+/// let data: Vec<u8> = vec![];
+/// let chain_id = 1;
+/// let to_address_str = "d8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+/// let to_address = Some(parse_eth_address(to_address_str));
+/// // Generate using EVMTransaction
+/// let tx = EVMTransaction {
+///     chain_id,
+///     nonce,
+///     to: to_address,
+///     value,
+///     input: data.clone(),
+///     gas_limit: GAS_LIMIT,
+///     max_fee_per_gas: MAX_FEE_PER_GAS,
+///     max_priority_fee_per_gas: MAX_PRIORITY_FEE_PER_GAS,
+///     access_list: vec![],
+/// };
+/// ```
+///
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(crate = "near_sdk::serde")]
 pub struct EVMTransaction {

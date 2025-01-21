@@ -1,24 +1,3 @@
-//! Construct NEAR transactions
-//!
-//! #### Example
-//! ```rust
-//! let signer_id = "alice.near";
-//! let signer_public_key = "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp";
-//! let nonce = U64(0);
-//! let receiver_id = "bob.near";
-//! let block_hash_str = "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ";
-//! let transfer_action = Action::Transfer(TransferAction { deposit: U128(1) });
-//! let actions = vec![transfer_action];
-//!
-//! let omni_tx = NearTransaction {
-//!     signer_id: signer_id.parse().unwrap(),
-//!     signer_public_key: signer_public_key.to_public_key().unwrap(),
-//!     nonce,
-//!     receiver_id: receiver_id.parse().unwrap(),
-//!     block_hash: block_hash_str.to_block_hash().unwrap(),
-//!     actions,
-//! };
-//! ```
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{borsh, AccountId};
@@ -26,7 +5,26 @@ use schemars::JsonSchema;
 
 use super::types::{Action, BlockHash, PublicKey, Signature, U64};
 
-/// NEAR transaction abstraction
+///
+/// ###### Example:
+/// ```rust
+/// let signer_id = "alice.near";
+/// let signer_public_key = "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp";
+/// let nonce = U64(0);
+/// let receiver_id = "bob.near";
+/// let block_hash_str = "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ";
+/// let transfer_action = Action::Transfer(TransferAction { deposit: U128(1) });
+/// let actions = vec![transfer_action];
+///
+/// let omni_tx = NearTransaction {
+///     signer_id: signer_id.parse().unwrap(),
+///     signer_public_key: signer_public_key.to_public_key().unwrap(),
+///     nonce,
+///     receiver_id: receiver_id.parse().unwrap(),
+///     block_hash: block_hash_str.to_block_hash().unwrap(),
+///     actions,
+/// };
+/// ```
 #[derive(Serialize, Deserialize, Debug, Clone, BorshSerialize, BorshDeserialize, JsonSchema)]
 #[serde(crate = "near_sdk::serde")]
 pub struct NearTransaction {
