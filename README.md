@@ -17,7 +17,7 @@ Library to construct transactions for different chains inside Near contracts and
 
 ```toml
 [dependencies]
-omni-transaction = "0.1.3"
+omni-transaction = "0.2.1"
 ```
 
 ## Examples

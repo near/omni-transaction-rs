@@ -11,7 +11,7 @@
 //! ### Installation
 //! ```toml
 //! [dependencies]
-//! omni-transaction = "0.1.3"
+//! omni-transaction = "0.2.1"
 //! ```
 //!
 //! ### Examples
@@ -121,13 +121,13 @@
 //!
 //! ```toml
 //! [dependencies]
-//! omni-transaction = { version = "0.1.3", features = ["near"] }
+//! omni-transaction = { version = "0.2.1", features = ["near"] }
 //! ```
 //! or
 //!
 //! ```toml
 //! [dependencies]
-//! omni-transaction = { version = "0.1.3", features = ["evm"] }
+//! omni-transaction = { version = "0.2.1", features = ["evm"] }
 //! ```
 //!
 #[cfg(feature = "bitcoin")]
@@ -137,7 +137,7 @@ mod constants;
 pub mod evm;
 #[cfg(feature = "near")]
 pub mod near;
-mod signer;
+pub mod signer;
 mod transaction_builder;
 mod transaction_builders;
 
