@@ -56,6 +56,6 @@ impl<R: Read + ?Sized> ReadExt for R {
     }
 
     fn read_slice(&mut self, slice: &mut [u8]) -> Result<(), std::io::Error> {
-        self.read_exact(slice).map_err(std::io::Error::from)
+        self.read_exact(slice)
     }
 }
