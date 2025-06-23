@@ -173,10 +173,7 @@ impl Decodable for Witness {
         // Minimum size of witness element is 1 byte, so if the count is
         // greater than MAX_VEC_SIZE we must return an error.
         if witness_elements > MAX_VEC_SIZE {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "OversizedVectorAllocation",
-            ));
+            return Err(std::io::Error::other("OversizedVectorAllocation"));
         }
         if witness_elements == 0 {
             Ok(Self::default())
@@ -196,18 +193,11 @@ impl Decodable for Witness {
                 let element_size = element_size_varint.0 as usize;
                 let required_len = cursor
                     .checked_add(element_size)
-                    .ok_or_else(|| {
-                        std::io::Error::new(std::io::ErrorKind::Other, "OversizedVectorAllocation")
-                    })?
+                    .ok_or_else(|| std::io::Error::other("OversizedVectorAllocation"))?
                     .checked_add(element_size_varint_len)
-                    .ok_or_else(|| {
-                        std::io::Error::new(std::io::ErrorKind::Other, "OversizedVectorAllocation")
-                    })?;
+                    .ok_or_else(|| std::io::Error::other("OversizedVectorAllocation"))?;
                 if required_len > MAX_VEC_SIZE + witness_index_space {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "OversizedVectorAllocation",
-                    ));
+                    return Err(std::io::Error::other("OversizedVectorAllocation"));
                 }
 
                 // We will do content.rotate_left(witness_index_space) later.

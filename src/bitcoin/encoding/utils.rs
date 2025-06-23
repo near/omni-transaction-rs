@@ -82,10 +82,7 @@ impl Decodable for VarInt {
             0xFF => {
                 let x = ReadExt::read_u64(r)?;
                 if x < 0x100000000 {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "NonMinimalVarInt",
-                    ))
+                    Err(std::io::Error::other("NonMinimalVarInt"))
                 } else {
                     Ok(Self::from(x))
                 }
@@ -93,10 +90,7 @@ impl Decodable for VarInt {
             0xFE => {
                 let x = ReadExt::read_u32(r)?;
                 if x < 0x10000 {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "NonMinimalVarInt",
-                    ))
+                    Err(std::io::Error::other("NonMinimalVarInt"))
                 } else {
                     Ok(Self::from(x))
                 }
@@ -104,10 +98,7 @@ impl Decodable for VarInt {
             0xFD => {
                 let x = ReadExt::read_u16(r)?;
                 if x < 0xFD {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "NonMinimalVarInt",
-                    ))
+                    Err(std::io::Error::other("NonMinimalVarInt"))
                 } else {
                     Ok(Self::from(x))
                 }
