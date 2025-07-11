@@ -30,13 +30,13 @@ near = []
 rlp = "0.6.1"
 hex = "0.4.3"
 borsh = { version = "1.0.0", features = ["derive"] }
-near-sdk = { version = "5.3.0", features = ["schemars"] }
+schemars = { version = "0.8" }
+near-sdk = { version = "5.3.0", features = ["schemars", "non-contract-usage"] }
 near-account-id = { version = "1.1.1", features = ["schemars-stable"] }
 serde-big-array = "0.5.1"
 bs58 = "0.5.1"
 serde = "1.0"
 serde_json = "1.0"
-schemars = { version = "0.8" }
 sha2 = { version = "0.10.8", optional = true }
 
 
@@ -71,6 +71,8 @@ k256 = { version = "0.13.1", features = [
     "arithmetic",
     "expose-field",
 ] }
+
+openssl = { version = "0.10.56", features = ["vendored"] }
 
 # async
 tokio = { version = "1.38", features = ["full"] }
