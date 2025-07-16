@@ -532,7 +532,7 @@ mod tests {
             )
             .unwrap(); // Handle the Result
 
-        println!("serialized buffer {:?}", buffer);
+        println!("serialized buffer {buffer:?}");
         // Omni implementation
         let omni_tx = OmniBitcoinTransaction {
             version: Version::Two,
@@ -558,7 +558,7 @@ mod tests {
             &OmniScriptBuf::default(),
             OmniAmount::from_sat(0).to_sat(),
         );
-        println!("serialized BTC Omni: {:?}", serialized);
+        println!("serialized BTC Omni: {serialized:?}");
 
         assert_eq!(buffer.len(), serialized.len());
         assert_eq!(buffer, serialized);
@@ -595,7 +595,7 @@ mod tests {
         "#;
 
         let tx = OmniBitcoinTransaction::from_json(json).unwrap();
-        println!("tx: {:?}", tx);
+        println!("tx: {tx:?}");
     }
 
     #[test]
@@ -629,7 +629,7 @@ mod tests {
         "#;
 
         let tx = OmniBitcoinTransaction::from_json(json).unwrap();
-        println!("tx: {:?}", tx);
+        println!("tx: {tx:?}");
 
         assert_eq!(tx.version, Version::One);
         assert_eq!(tx.lock_time, LockTime::from_height(0).unwrap());
@@ -695,7 +695,7 @@ mod tests {
         "#;
 
         let tx = OmniBitcoinTransaction::from_json(json).unwrap();
-        println!("tx: {:?}", tx);
+        println!("tx: {tx:?}");
 
         assert_eq!(tx.version, Version::Two);
         assert_eq!(tx.lock_time, LockTime::from_height(0).unwrap());
@@ -761,7 +761,7 @@ mod tests {
         "#;
 
         let tx = OmniBitcoinTransaction::from_json(json).unwrap();
-        println!("tx: {:?}", tx);
+        println!("tx: {tx:?}");
 
         assert_eq!(tx.version, Version::Two);
         assert_eq!(tx.lock_time, LockTime::from_height(0).unwrap());

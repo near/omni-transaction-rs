@@ -80,8 +80,8 @@ async fn test_send_raw_transaction_created_with_omnitransactionbuilder_for_evm()
         .send_raw_transaction(&omni_evm_tx_encoded_with_signature)
         .await
     {
-        Ok(tx_hash) => println!("Transaction sent successfully. Hash: {:?}", tx_hash),
-        Err(e) => println!("Failed to send transaction: {:?}", e),
+        Ok(tx_hash) => println!("Transaction sent successfully. Hash: {tx_hash:?}"),
+        Err(e) => println!("Failed to send transaction: {e:?}"),
     }
 
     eyre::Ok(())

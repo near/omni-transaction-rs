@@ -466,7 +466,7 @@ async fn test_send_p2pkh_using_rust_bitcoin_and_omni_library() -> Result<()> {
         .call("sendrawtransaction", &[json!(hex_omni_tx)])
         .unwrap();
 
-    println!("raw_tx_result: {:?}", raw_tx_result);
+    println!("raw_tx_result: {raw_tx_result:?}");
 
     client.generate_to_address(101, &bob.address)?;
 
@@ -663,7 +663,7 @@ async fn test_p2wpkh_single_utxo() -> Result<()> {
         )
         .unwrap();
 
-    println!("raw_tx_result: {:?}", raw_tx_result);
+    println!("raw_tx_result: {raw_tx_result:?}");
 
     client.generate_to_address(101, &bob.address)?;
 
@@ -891,7 +891,7 @@ async fn test_p2wpkh_multiple_utxos() -> Result<()> {
         )
         .unwrap();
 
-    println!("raw_tx_result: {:?}", raw_tx_result);
+    println!("raw_tx_result: {raw_tx_result:?}");
 
     client.generate_to_address(101, &bob.address)?;
 

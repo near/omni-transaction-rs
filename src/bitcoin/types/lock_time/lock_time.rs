@@ -37,7 +37,7 @@ impl LockTime {
         if Height::is_valid(height) {
             Ok(Self(height))
         } else {
-            Err(format!("Invalid block height: {}", height))
+            Err(format!("Invalid block height: {height}"))
         }
     }
 
@@ -45,7 +45,7 @@ impl LockTime {
         if Time::is_valid(time) {
             Ok(Self(time))
         } else {
-            Err(format!("Invalid timestamp: {}", time))
+            Err(format!("Invalid timestamp: {time}"))
         }
     }
 

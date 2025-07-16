@@ -89,7 +89,7 @@ mod tests {
         let base58 = "CjNSmWXTWhC3EhRVtqLhRmWMTkRbU96wUACqxMtV1uGf";
 
         // Serialize to JSON string
-        let json = format!("\"{}\"", base58);
+        let json = format!("\"{base58}\"");
 
         // Deserialize from JSON string using serde_json
         let block_hash: BlockHash = serde_json::from_str(&json).unwrap();

@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn test_u64_deserde() {
         let u64_value = 1234567890;
-        let u64_value_str = format!("\"{}\"", u64_value);
+        let u64_value_str = format!("\"{u64_value}\"");
         let deserialized: U64 = serde_json::from_str(&u64_value_str).unwrap();
 
         assert_eq!(deserialized.0, u64_value);
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn test_u128_deserde() {
         let u128_value = 12345678901234567890;
-        let u128_value_str = format!("\"{}\"", u128_value);
+        let u128_value_str = format!("\"{u128_value}\"");
         let deserialized: U128 = serde_json::from_str(&u128_value_str).unwrap();
 
         assert_eq!(deserialized.0, u128_value);

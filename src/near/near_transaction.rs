@@ -290,7 +290,7 @@ mod tests {
                         max_block_height: U64(1),
                         public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".to_public_key().unwrap(),
                     },
-                    signature: signature.clone()
+                    signature
                 }))],
             },
             TestCase {
@@ -401,8 +401,7 @@ mod tests {
 
             assert_eq!(
                 serialized_near_primitive_v0_tx, serialized_omni_tx,
-                "Test case {} failed: serialized transactions do not match.\nNEAR: {:?}\nOmni: {:?}",
-                i, serialized_near_primitive_v0_tx, serialized_omni_tx
+                "Test case {i} failed: serialized transactions do not match.\nNEAR: {serialized_near_primitive_v0_tx:?}\nOmni: {serialized_omni_tx:?}"
             );
         }
     }
@@ -464,8 +463,7 @@ mod tests {
 
             assert_eq!(
                 serialized_omni_tx, encoded_signed_tx,
-                "Test case {} failed: serialized transactions do not match.\nNEAR: {:?}\nOmni: {:?}",
-                i, serialized_omni_tx, encoded_signed_tx
+                "Test case {i} failed: serialized transactions do not match.\nNEAR: {serialized_omni_tx:?}\nOmni: {encoded_signed_tx:?}"
             );
         }
     }
@@ -538,8 +536,7 @@ mod tests {
 
             assert_eq!(
                 serialized_omni_tx, encoded_signed_tx,
-                "Test case {} failed: serialized transactions do not match.\nNEAR: {:?}\nOmni: {:?}",
-                i, serialized_omni_tx, encoded_signed_tx
+                "Test case {i} failed: serialized transactions do not match.\nNEAR: {serialized_omni_tx:?}\nOmni: {encoded_signed_tx:?}"
             );
         }
     }

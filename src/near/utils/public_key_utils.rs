@@ -63,7 +63,7 @@ impl PublicKeyStrExt for str {
 
         let bytes = bs58::decode(key_data)
             .into_vec()
-            .map_err(|e| format!("Failed to decode base58: {}", e))?;
+            .map_err(|e| format!("Failed to decode base58: {e}"))?;
 
         match key_type {
             "ed25519" => {
@@ -90,7 +90,7 @@ impl PublicKeyStrExt for str {
             .and_then(|rest| {
                 let bytes = bs58::decode(rest)
                     .into_vec()
-                    .map_err(|e| format!("Failed to decode base58: {}", e))?;
+                    .map_err(|e| format!("Failed to decode base58: {e}"))?;
 
                 bytes
                     .try_into()
@@ -104,7 +104,7 @@ impl PublicKeyStrExt for str {
             .and_then(|rest| {
                 let bytes = bs58::decode(rest)
                     .into_vec()
-                    .map_err(|e| format!("Failed to decode base58: {}", e))?;
+                    .map_err(|e| format!("Failed to decode base58: {e}"))?;
 
                 bytes
                     .try_into()
@@ -121,12 +121,8 @@ impl PublicKeyStrExt for str {
 fn decode_base58_to_fixed_bytes<const N: usize>(input: &str) -> Result<[u8; N], String> {
     bs58::decode(input)
         .into_vec()
-        .map_err(|e| format!("Failed to decode base58: {}", e))
-        .and_then(|bytes| {
-            bytes
-                .try_into()
-                .map_err(|_| format!("Expected {} bytes", N))
-        })
+        .map_err(|e| format!("Failed to decode base58: {e}"))
+        .and_then(|bytes| bytes.try_into().map_err(|_| format!("Expected {N} bytes")))
 }
 
 #[cfg(test)]

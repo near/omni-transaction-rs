@@ -148,7 +148,7 @@ impl<'de> serde::de::Visitor<'de> for OutPointVisitor {
                     );
                 }
                 _ => {
-                    return Err(serde::de::Error::custom(format!("Unexpected key: {}", key)));
+                    return Err(serde::de::Error::custom(format!("Unexpected key: {key}")));
                 }
             }
         }
@@ -187,7 +187,7 @@ mod tests {
         }"#;
 
         let outpoint: OutPoint = serde_json::from_str(json_string).unwrap();
-        println!("outpoint = {:?}", outpoint);
+        println!("outpoint = {outpoint:?}");
         assert_eq!(
             outpoint,
             OutPoint {
@@ -210,7 +210,7 @@ mod tests {
         }"#;
 
         let outpoint: OutPoint = serde_json::from_str(json_string).unwrap();
-        println!("outpoint = {:?}", outpoint);
+        println!("outpoint = {outpoint:?}");
         assert_eq!(
             outpoint,
             OutPoint {
