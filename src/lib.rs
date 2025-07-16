@@ -143,8 +143,11 @@ mod transaction_builders;
 
 pub use transaction_builder::{TransactionBuilder, TxBuilder};
 /// Alias for BitcoinTransactionBuilder
+#[cfg(feature = "bitcoin")]
 pub use transaction_builders::BITCOIN;
 /// Alias for EVMTransactionBuilder
+#[cfg(feature = "evm")]
 pub use transaction_builders::EVM;
 /// Alias for NearTransactionBuilder
+#[cfg(feature = "near")]
 pub use transaction_builders::NEAR;

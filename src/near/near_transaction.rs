@@ -72,6 +72,7 @@ impl NearTransaction {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+    use std::sync::Arc;
 
     use super::*;
     use crate::near::types::{
@@ -79,10 +80,14 @@ mod tests {
         Action as OmniAction, AddKeyAction as OmniAddKeyAction,
         CreateAccountAction as OmniCreateAccountAction, DelegateAction as OmniDelegateAction,
         DeleteAccountAction as OmniDeleteAccountAction, DeleteKeyAction as OmniDeleteKeyAction,
-        DeployContractAction as OmniDeployContractAction, ED25519Signature,
-        FunctionCallAction as OmniFunctionCallAction, Secp256K1Signature,
+        DeployContractAction as OmniDeployContractAction,
+        DeployGlobalContractAction as OmniDeployGlobalContractAction, ED25519Signature,
+        FunctionCallAction as OmniFunctionCallAction,
+        GlobalContractDeployMode as OmniGlobalContractDeployMode,
+        GlobalContractIdentifier as OmniGlobalContractIdentifier, Secp256K1Signature,
         Signature as OmniSignature, SignedDelegateAction as OmniSignedDelegateAction,
-        StakeAction as OmniStakeAction, TransferAction as OmniTransferAction, U128,
+        StakeAction as OmniStakeAction, TransferAction as OmniTransferAction,
+        UseGlobalContractAction as OmniUseGlobalContractAction, U128,
     };
     use crate::near::utils::PublicKeyStrExt;
     use near_crypto::{ED25519PublicKey, PublicKey, Signature};
@@ -90,7 +95,8 @@ mod tests {
     use near_primitives::action::delegate::{DelegateAction, SignedDelegateAction};
     use near_primitives::action::{
         CreateAccountAction, DeleteAccountAction, DeleteKeyAction, DeployContractAction,
-        FunctionCallAction, StakeAction,
+        DeployGlobalContractAction, FunctionCallAction, GlobalContractDeployMode,
+        GlobalContractIdentifier, StakeAction, UseGlobalContractAction,
     };
     use near_primitives::{
         account::{AccessKey, AccessKeyPermission},
@@ -287,21 +293,38 @@ mod tests {
                     signature: signature.clone()
                 }))],
             },
-            // TestCase {
-            //     signer_id: "alice.near",
-            //     signer_public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
-            //     nonce: 1,
-            //     receiver_id: "bob.near",
-            //     block_hash: "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ",
-            //     near_primitive_actions: vec![Action::UseGlobalContract(Box::new(UseGlobalContractAction {
-            //         contract_identifier: GlobalContractIdentifier::CodeHash(BlockHash::from_str("4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ").unwrap()),
-            //     }))],
-            //     omni_actions: vec![
-            //         OmniAction::UseGlobalContract(Box::new(OmniUseGlobalContractAction {
-            //             contract_identifier: OmniGlobalContractIdentifier::CodeHash(BlockHash::from_str("4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ").unwrap()),
-            //         })),
-            //     ],
-            // },
+            TestCase {
+                signer_id: "alice.near",
+                signer_public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
+                nonce: 1,
+                receiver_id: "bob.near",
+                block_hash: "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ",
+                near_primitive_actions: vec![Action::UseGlobalContract(Box::new(UseGlobalContractAction {
+                    contract_identifier: GlobalContractIdentifier::CodeHash(CryptoHash::from_str("4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ").unwrap()),
+                }))],
+                omni_actions: vec![
+                    OmniAction::UseGlobalContract(Box::new(OmniUseGlobalContractAction {
+                        contract_identifier: OmniGlobalContractIdentifier::CodeHash(BlockHash("4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ".to_fixed_32_bytes().unwrap())),
+                    })),
+                ],
+            },
+            TestCase {
+                signer_id: "alice.near",
+                signer_public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
+                nonce: 1,
+                receiver_id: "bob.near",
+                block_hash: "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ",
+                near_primitive_actions: vec![Action::DeployGlobalContract(DeployGlobalContractAction {
+                    code: Arc::new([0x01, 0x02, 0x03]),
+                    deploy_mode: GlobalContractDeployMode::AccountId,
+                })],
+                omni_actions: vec![
+                    OmniAction::DeployGlobalContract(OmniDeployGlobalContractAction {
+                        code: vec![0x01, 0x02, 0x03],
+                        deploy_mode: OmniGlobalContractDeployMode::AccountId,
+                    }),
+                ],
+            },
             // Transfer and Add Key
             TestCase {
                 signer_id: "forgetful-parent.testnet",
