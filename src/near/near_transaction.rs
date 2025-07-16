@@ -105,6 +105,7 @@ mod tests {
         transaction::Transaction as NearPrimitiveTransaction,
         transaction::TransactionV0,
     };
+    use near_sdk::json_types::Base64VecU8;
 
     #[derive(Debug)]
     struct TestCase {
@@ -144,7 +145,7 @@ mod tests {
                     code: vec![0x01, 0x02, 0x03],
                 })],
                 omni_actions: vec![OmniAction::DeployContract(OmniDeployContractAction {
-                    code: vec![0x01, 0x02, 0x03],
+                    code: Base64VecU8(vec![0x01, 0x02, 0x03]),
                 })],
             },
             // Function Call
@@ -320,7 +321,7 @@ mod tests {
                 })],
                 omni_actions: vec![
                     OmniAction::DeployGlobalContract(OmniDeployGlobalContractAction {
-                        code: vec![0x01, 0x02, 0x03],
+                        code: Base64VecU8(vec![0x01, 0x02, 0x03]),
                         deploy_mode: OmniGlobalContractDeployMode::AccountId,
                     }),
                 ],

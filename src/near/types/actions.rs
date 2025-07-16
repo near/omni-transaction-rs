@@ -1,5 +1,6 @@
 use crate::near::types::{BlockHash, PublicKey, Signature};
 use borsh::{BorshDeserialize, BorshSerialize};
+use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::AccountId;
 use schemars::JsonSchema;
@@ -49,7 +50,7 @@ pub enum Action {
 )]
 #[serde(crate = "near_sdk::serde")]
 pub struct DeployGlobalContractAction {
-    pub code: Vec<u8>,
+    pub code: Base64VecU8,
     pub deploy_mode: GlobalContractDeployMode,
 }
 
@@ -136,7 +137,7 @@ pub struct CreateAccountAction {}
 )]
 #[serde(crate = "near_sdk::serde")]
 pub struct DeployContractAction {
-    pub code: Vec<u8>,
+    pub code: Base64VecU8,
 }
 
 #[derive(
@@ -376,7 +377,7 @@ mod tests {
         vec![
             Action::CreateAccount(CreateAccountAction {}),
             Action::DeployContract(DeployContractAction {
-                code: vec![1, 2, 3],
+                code: Base64VecU8(vec![1, 2, 3]),
             }),
             Action::FunctionCall(Box::new(FunctionCallAction {
                 method_name: "test".to_string(),
@@ -404,6 +405,13 @@ mod tests {
             Action::DeleteAccount(DeleteAccountAction {
                 beneficiary_id: "alice.near".parse().unwrap(),
             }),
+            Action::DeployGlobalContract(DeployGlobalContractAction {
+                code: Base64VecU8(vec![3, 4, 5]),
+                deploy_mode: GlobalContractDeployMode::CodeHash,
+            }),
+            Action::UseGlobalContract(Box::new(UseGlobalContractAction {
+                contract_identifier: GlobalContractIdentifier::CodeHash(BlockHash([4; 32])),
+            })),
         ]
     }
 
