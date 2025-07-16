@@ -49,7 +49,7 @@ alloy-primitives = { version = "0.8.3" }
 # near
 near-primitives = { version = "0.30" }
 near-crypto = { version = "0.30" }
-near-jsonrpc-client = { git = "https://github.com/omni-rs/near-jsonrpc-client-rs", rev = "5cad70319083caf6b5e1e87636061460094718eb" }
+near-jsonrpc-client = { version = "0.17.0" }
 near-workspaces = { version = "0.20", features = ["experimental", "unstable"] }
 
 # bitcoin

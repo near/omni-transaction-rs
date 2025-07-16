@@ -90,8 +90,8 @@ async fn test_send_raw_transaction_created_with_omnitransactionbuilder_for_near(
     // Build the signed transaction
     let near_tx_signed = near_tx.build_with_signature(omni_signature);
 
-    let request = methods::send_raw_tx::RpcSendRawTransactionRequest {
-        raw_signed_transaction: near_tx_signed.clone(),
+    let request = methods::send_tx::RpcSendTransactionRequest {
+        signed_transaction: serde_json::from_slice(&near_tx_signed).unwrap(),
         wait_until: near_primitives::views::TxExecutionStatus::IncludedFinal,
     };
 
