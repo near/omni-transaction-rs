@@ -294,6 +294,7 @@ mod tests {
                     signature
                 }))],
             },
+            // Use Global Contract
             TestCase {
                 signer_id: "alice.near",
                 signer_public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
@@ -309,6 +310,7 @@ mod tests {
                     })),
                 ],
             },
+            // Deploy Global Contract
             TestCase {
                 signer_id: "alice.near",
                 signer_public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
