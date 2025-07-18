@@ -1,6 +1,5 @@
-use crate::near::types::{BlockHash, PublicKey, Signature};
+use crate::near::types::{vector::Base64VecU8, BlockHash, PublicKey, Signature};
 use borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::AccountId;
 use schemars::JsonSchema;

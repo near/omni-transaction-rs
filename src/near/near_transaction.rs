@@ -76,11 +76,11 @@ mod tests {
 
     use super::*;
     use crate::near::types::{
-        AccessKey as OmniAccessKey, AccessKeyPermission as OmniAccessKeyPermission,
-        Action as OmniAction, AddKeyAction as OmniAddKeyAction,
-        CreateAccountAction as OmniCreateAccountAction, DelegateAction as OmniDelegateAction,
-        DeleteAccountAction as OmniDeleteAccountAction, DeleteKeyAction as OmniDeleteKeyAction,
-        DeployContractAction as OmniDeployContractAction,
+        vector::Base64VecU8, AccessKey as OmniAccessKey,
+        AccessKeyPermission as OmniAccessKeyPermission, Action as OmniAction,
+        AddKeyAction as OmniAddKeyAction, CreateAccountAction as OmniCreateAccountAction,
+        DelegateAction as OmniDelegateAction, DeleteAccountAction as OmniDeleteAccountAction,
+        DeleteKeyAction as OmniDeleteKeyAction, DeployContractAction as OmniDeployContractAction,
         DeployGlobalContractAction as OmniDeployGlobalContractAction, ED25519Signature,
         FunctionCallAction as OmniFunctionCallAction,
         GlobalContractDeployMode as OmniGlobalContractDeployMode,
@@ -105,7 +105,6 @@ mod tests {
         transaction::Transaction as NearPrimitiveTransaction,
         transaction::TransactionV0,
     };
-    use near_sdk::json_types::Base64VecU8;
 
     #[derive(Debug)]
     struct TestCase {

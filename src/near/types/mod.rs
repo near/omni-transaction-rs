@@ -4,6 +4,7 @@ mod block_hash;
 pub mod integers;
 mod public_key;
 mod signature;
+pub mod vector;
 
 pub use actions::*;
 pub use block_hash::*;
