@@ -1,17 +1,19 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use bs58;
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Debug;
 
 use crate::constants::{COMPONENT_SIZE, SECP256K1_SIGNATURE_LENGTH};
 
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, JsonSchema)]
+#[serde(crate = "near_sdk::serde")]
 pub enum Signature {
     ED25519(ED25519Signature),
     SECP256K1(Secp256K1Signature),
 }
 
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, JsonSchema)]
 pub struct ED25519Signature {
     pub r: ComponentBytes,
     pub s: ComponentBytes,
@@ -22,6 +24,16 @@ pub type ComponentBytes = [u8; COMPONENT_SIZE];
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub struct Secp256K1Signature(pub [u8; SECP256K1_SIGNATURE_LENGTH]);
+
+impl JsonSchema for Secp256K1Signature {
+    fn schema_name() -> String {
+        "Secp256K1Signature".to_owned()
+    }
+
+    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        <String>::json_schema(gen)
+    }
+}
 
 impl Serialize for Signature {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -35,11 +47,11 @@ impl Serialize for Signature {
                 bytes.extend_from_slice(&sig.s);
 
                 let encoded = bs58::encode(&bytes).into_string();
-                serializer.serialize_str(&format!("ed25519:{}", encoded))
+                serializer.serialize_str(&format!("ed25519:{encoded}"))
             }
             Self::SECP256K1(sig) => {
                 let encoded = bs58::encode(&sig.0).into_string();
-                serializer.serialize_str(&format!("secp256k1:{}", encoded))
+                serializer.serialize_str(&format!("secp256k1:{encoded}"))
             }
         }
     }

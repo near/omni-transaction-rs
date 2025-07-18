@@ -137,7 +137,7 @@ impl fmt::Display for Version {
             Self::One => "1",
             Self::Two => "2",
         };
-        write!(f, "{}", version_number)
+        write!(f, "{version_number}")
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::near::types::PublicKey;
+use crate::near::types::{vector::Base64VecU8, BlockHash, PublicKey, Signature};
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::AccountId;
@@ -31,6 +31,82 @@ pub enum Action {
     AddKey(Box<AddKeyAction>),
     DeleteKey(Box<DeleteKeyAction>),
     DeleteAccount(DeleteAccountAction),
+    Delegate(Box<SignedDelegateAction>),
+    DeployGlobalContract(DeployGlobalContractAction),
+    UseGlobalContract(Box<UseGlobalContractAction>),
+}
+
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    BorshSerialize,
+    BorshDeserialize,
+    PartialEq,
+    Eq,
+    JsonSchema,
+)]
+#[serde(crate = "near_sdk::serde")]
+pub struct DeployGlobalContractAction {
+    pub code: Base64VecU8,
+    pub deploy_mode: GlobalContractDeployMode,
+}
+
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    BorshSerialize,
+    BorshDeserialize,
+    PartialEq,
+    Eq,
+    JsonSchema,
+)]
+#[serde(crate = "near_sdk::serde")]
+pub struct UseGlobalContractAction {
+    pub contract_identifier: GlobalContractIdentifier,
+}
+
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    BorshSerialize,
+    BorshDeserialize,
+    PartialEq,
+    Eq,
+    JsonSchema,
+)]
+#[serde(crate = "near_sdk::serde")]
+pub enum GlobalContractDeployMode {
+    /// Contract is deployed under its code hash.
+    /// Users will be able reference it by that hash.
+    /// This effectively makes the contract immutable.
+    CodeHash,
+    /// Contract is deployed under the owner account id.
+    /// Users will be able reference it by that account id.
+    /// This allows the owner to update the contract for all its users.
+    AccountId,
+}
+
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    BorshSerialize,
+    BorshDeserialize,
+    PartialEq,
+    Eq,
+    JsonSchema,
+)]
+#[serde(crate = "near_sdk::serde")]
+pub enum GlobalContractIdentifier {
+    CodeHash(BlockHash),
+    AccountId(AccountId),
 }
 
 #[derive(
@@ -60,7 +136,7 @@ pub struct CreateAccountAction {}
 )]
 #[serde(crate = "near_sdk::serde")]
 pub struct DeployContractAction {
-    pub code: Vec<u8>,
+    pub code: Base64VecU8,
 }
 
 #[derive(
@@ -227,6 +303,68 @@ pub struct DeleteAccountAction {
     pub beneficiary_id: AccountId,
 }
 
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    BorshSerialize,
+    BorshDeserialize,
+    PartialEq,
+    Eq,
+    JsonSchema,
+)]
+#[serde(crate = "near_sdk::serde")]
+pub struct NonDelegateAction(Action);
+
+impl TryFrom<Action> for NonDelegateAction {
+    type Error = ();
+    fn try_from(action: Action) -> Result<Self, Self::Error> {
+        if let Action::Delegate(_) = action {
+            return Err(());
+        }
+        Ok(Self(action))
+    }
+}
+
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    BorshSerialize,
+    BorshDeserialize,
+    PartialEq,
+    Eq,
+    JsonSchema,
+)]
+#[serde(crate = "near_sdk::serde")]
+pub struct DelegateAction {
+    pub sender_id: AccountId,
+    pub receiver_id: AccountId,
+    pub actions: Vec<NonDelegateAction>,
+    pub nonce: U64,
+    pub max_block_height: U64,
+    pub public_key: PublicKey,
+}
+
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    BorshSerialize,
+    BorshDeserialize,
+    PartialEq,
+    Eq,
+    JsonSchema,
+)]
+#[serde(crate = "near_sdk::serde")]
+pub struct SignedDelegateAction {
+    pub delegate_action: DelegateAction,
+    pub signature: Signature,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,7 +376,7 @@ mod tests {
         vec![
             Action::CreateAccount(CreateAccountAction {}),
             Action::DeployContract(DeployContractAction {
-                code: vec![1, 2, 3],
+                code: Base64VecU8(vec![1, 2, 3]),
             }),
             Action::FunctionCall(Box::new(FunctionCallAction {
                 method_name: "test".to_string(),
@@ -266,6 +404,13 @@ mod tests {
             Action::DeleteAccount(DeleteAccountAction {
                 beneficiary_id: "alice.near".parse().unwrap(),
             }),
+            Action::DeployGlobalContract(DeployGlobalContractAction {
+                code: Base64VecU8(vec![3, 4, 5]),
+                deploy_mode: GlobalContractDeployMode::CodeHash,
+            }),
+            Action::UseGlobalContract(Box::new(UseGlobalContractAction {
+                contract_identifier: GlobalContractIdentifier::CodeHash(BlockHash([4; 32])),
+            })),
         ]
     }
 
@@ -282,8 +427,7 @@ mod tests {
 
             assert_eq!(
                     action, deserialized,
-                    "Serialization/Deserialization mismatch: original action: {:?}, deserialized action: {:?}",
-                    action, deserialized
+                    "Serialization/Deserialization mismatch: original action: {action:?}, deserialized action: {deserialized:?}"
                 );
         }
     }
@@ -300,8 +444,7 @@ mod tests {
 
             assert_eq!(
                 action, deserialized,
-                "Serialization/Deserialization mismatch: original action: {:?}, deserialized action: {:?}",
-                action, deserialized
+                "Serialization/Deserialization mismatch: original action: {action:?}, deserialized action: {deserialized:?}"
             );
         }
     }

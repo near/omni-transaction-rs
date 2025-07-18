@@ -71,23 +71,32 @@ impl NearTransaction {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+    use std::sync::Arc;
+
     use super::*;
     use crate::near::types::{
-        AccessKey as OmniAccessKey, AccessKeyPermission as OmniAccessKeyPermission,
-        Action as OmniAction, AddKeyAction as OmniAddKeyAction,
-        CreateAccountAction as OmniCreateAccountAction,
-        DeleteAccountAction as OmniDeleteAccountAction, DeleteKeyAction as OmniDeleteKeyAction,
-        DeployContractAction as OmniDeployContractAction, ED25519Signature,
-        FunctionCallAction as OmniFunctionCallAction, Secp256K1Signature,
-        Signature as OmniSignature, StakeAction as OmniStakeAction,
-        TransferAction as OmniTransferAction, U128,
+        vector::Base64VecU8, AccessKey as OmniAccessKey,
+        AccessKeyPermission as OmniAccessKeyPermission, Action as OmniAction,
+        AddKeyAction as OmniAddKeyAction, CreateAccountAction as OmniCreateAccountAction,
+        DelegateAction as OmniDelegateAction, DeleteAccountAction as OmniDeleteAccountAction,
+        DeleteKeyAction as OmniDeleteKeyAction, DeployContractAction as OmniDeployContractAction,
+        DeployGlobalContractAction as OmniDeployGlobalContractAction, ED25519Signature,
+        FunctionCallAction as OmniFunctionCallAction,
+        GlobalContractDeployMode as OmniGlobalContractDeployMode,
+        GlobalContractIdentifier as OmniGlobalContractIdentifier, Secp256K1Signature,
+        Signature as OmniSignature, SignedDelegateAction as OmniSignedDelegateAction,
+        StakeAction as OmniStakeAction, TransferAction as OmniTransferAction,
+        UseGlobalContractAction as OmniUseGlobalContractAction, U128,
     };
     use crate::near::utils::PublicKeyStrExt;
-    use near_crypto::{ED25519PublicKey, PublicKey};
+    use near_crypto::{ED25519PublicKey, PublicKey, Signature};
     use near_crypto::{InMemorySigner, KeyType, Signer};
+    use near_primitives::action::delegate::{DelegateAction, SignedDelegateAction};
     use near_primitives::action::{
         CreateAccountAction, DeleteAccountAction, DeleteKeyAction, DeployContractAction,
-        FunctionCallAction, StakeAction,
+        DeployGlobalContractAction, FunctionCallAction, GlobalContractDeployMode,
+        GlobalContractIdentifier, StakeAction, UseGlobalContractAction,
     };
     use near_primitives::{
         account::{AccessKey, AccessKeyPermission},
@@ -109,6 +118,10 @@ mod tests {
     }
 
     fn create_test_cases() -> Vec<TestCase> {
+        let signature = {
+            use crate::near::utils::SignatureStrExt;
+            "ed25519:3s1dvZdQtcAjBksMHFrysqvF63wnyMHPA4owNQmCJZ2EBakZEKdtMsLqrHdKWQjJbSRN6kRknN2WdwSBLWGCokXj".to_signature().unwrap()
+        };
         vec![
             // Create Account
             TestCase {
@@ -131,7 +144,7 @@ mod tests {
                     code: vec![0x01, 0x02, 0x03],
                 })],
                 omni_actions: vec![OmniAction::DeployContract(OmniDeployContractAction {
-                    code: vec![0x01, 0x02, 0x03],
+                    code: Base64VecU8(vec![0x01, 0x02, 0x03]),
                 })],
             },
             // Function Call
@@ -250,6 +263,70 @@ mod tests {
                     beneficiary_id: "bob.near".parse().unwrap(),
                 })],
             },
+            // Delegate
+            TestCase {
+                signer_id: "alice.near",
+                signer_public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
+                nonce: 1,
+                receiver_id: "bob.near",
+                block_hash: "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ",
+                near_primitive_actions: vec![Action::Delegate(Box::new(SignedDelegateAction{
+                    delegate_action: DelegateAction {
+                        sender_id: "alice.near".parse().unwrap(),
+                        receiver_id: "bob.near".parse().unwrap(),
+                        actions: vec![Action::CreateAccount(CreateAccountAction {}).try_into().unwrap()],
+                        nonce: 1,
+                        max_block_height: 1,
+                        public_key: PublicKey::from_str("ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp").unwrap(),
+                    },
+                    signature: Signature::from_str("ed25519:3s1dvZdQtcAjBksMHFrysqvF63wnyMHPA4owNQmCJZ2EBakZEKdtMsLqrHdKWQjJbSRN6kRknN2WdwSBLWGCokXj").unwrap()
+                }))],
+                omni_actions: vec![OmniAction::Delegate(Box::new(OmniSignedDelegateAction {
+                    delegate_action: OmniDelegateAction {
+                        sender_id: "alice.near".parse().unwrap(),
+                        receiver_id: "bob.near".parse().unwrap(),
+                        actions: vec![OmniAction::CreateAccount(OmniCreateAccountAction {}).try_into().unwrap()],
+                        nonce: U64(1),
+                        max_block_height: U64(1),
+                        public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".to_public_key().unwrap(),
+                    },
+                    signature
+                }))],
+            },
+            // Use Global Contract
+            TestCase {
+                signer_id: "alice.near",
+                signer_public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
+                nonce: 1,
+                receiver_id: "bob.near",
+                block_hash: "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ",
+                near_primitive_actions: vec![Action::UseGlobalContract(Box::new(UseGlobalContractAction {
+                    contract_identifier: GlobalContractIdentifier::CodeHash(CryptoHash::from_str("4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ").unwrap()),
+                }))],
+                omni_actions: vec![
+                    OmniAction::UseGlobalContract(Box::new(OmniUseGlobalContractAction {
+                        contract_identifier: OmniGlobalContractIdentifier::CodeHash(BlockHash("4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ".to_fixed_32_bytes().unwrap())),
+                    })),
+                ],
+            },
+            // Deploy Global Contract
+            TestCase {
+                signer_id: "alice.near",
+                signer_public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
+                nonce: 1,
+                receiver_id: "bob.near",
+                block_hash: "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ",
+                near_primitive_actions: vec![Action::DeployGlobalContract(DeployGlobalContractAction {
+                    code: Arc::new([0x01, 0x02, 0x03]),
+                    deploy_mode: GlobalContractDeployMode::AccountId,
+                })],
+                omni_actions: vec![
+                    OmniAction::DeployGlobalContract(OmniDeployGlobalContractAction {
+                        code: Base64VecU8(vec![0x01, 0x02, 0x03]),
+                        deploy_mode: OmniGlobalContractDeployMode::AccountId,
+                    }),
+                ],
+            },
             // Transfer and Add Key
             TestCase {
                 signer_id: "forgetful-parent.testnet",
@@ -326,8 +403,7 @@ mod tests {
 
             assert_eq!(
                 serialized_near_primitive_v0_tx, serialized_omni_tx,
-                "Test case {} failed: serialized transactions do not match.\nNEAR: {:?}\nOmni: {:?}",
-                i, serialized_near_primitive_v0_tx, serialized_omni_tx
+                "Test case {i} failed: serialized transactions do not match.\nNEAR: {serialized_near_primitive_v0_tx:?}\nOmni: {serialized_omni_tx:?}"
             );
         }
     }
@@ -389,8 +465,7 @@ mod tests {
 
             assert_eq!(
                 serialized_omni_tx, encoded_signed_tx,
-                "Test case {} failed: serialized transactions do not match.\nNEAR: {:?}\nOmni: {:?}",
-                i, serialized_omni_tx, encoded_signed_tx
+                "Test case {i} failed: serialized transactions do not match.\nNEAR: {serialized_omni_tx:?}\nOmni: {encoded_signed_tx:?}"
             );
         }
     }
@@ -463,8 +538,7 @@ mod tests {
 
             assert_eq!(
                 serialized_omni_tx, encoded_signed_tx,
-                "Test case {} failed: serialized transactions do not match.\nNEAR: {:?}\nOmni: {:?}",
-                i, serialized_omni_tx, encoded_signed_tx
+                "Test case {i} failed: serialized transactions do not match.\nNEAR: {serialized_omni_tx:?}\nOmni: {encoded_signed_tx:?}"
             );
         }
     }
