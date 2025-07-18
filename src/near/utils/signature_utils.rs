@@ -44,7 +44,7 @@ impl SignatureStrExt for str {
 
         let bytes = bs58::decode(key_data)
             .into_vec()
-            .map_err(|e| format!("Failed to decode base58: {}", e))?;
+            .map_err(|e| format!("Failed to decode base58: {e}"))?;
 
         match key_type {
             "ed25519" => {

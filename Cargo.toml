@@ -30,7 +30,7 @@ near = []
 rlp = "0.6.1"
 hex = "0.4.3"
 borsh = { version = "1.0.0", features = ["derive"] }
-near-sdk = { version = "5.3.0", features = ["schemars"] }
+near-sdk = { version = "5.15.1", features = ["schemars", "non-contract-usage"] }
 near-account-id = { version = "1.1.1", features = ["schemars-stable"] }
 serde-big-array = "0.5.1"
 bs58 = "0.5.1"
@@ -47,13 +47,10 @@ alloy-rlp = { version = "0.3.8", features = ["derive"] }
 alloy-primitives = { version = "0.8.3" }
 
 # near
-near-primitives = { version = "0.25.0" }
-near-crypto = { version = "0.25.0" }
-near-jsonrpc-client = { git = "https://github.com/omni-rs/near-jsonrpc-client-rs", tag = "v0.12.1" }
-near-workspaces = { version = "0.13.0", features = [
-    "experimental",
-    "unstable",
-] }
+near-primitives = { version = "0.30" }
+near-crypto = { version = "0.30" }
+near-jsonrpc-client = { version = "0.17.0", features = ["any"] }
+near-workspaces = { version = "0.20", features = ["experimental", "unstable"] }
 
 # bitcoin
 bitcoin = { version = "0.32.0", default-features = false, features = [

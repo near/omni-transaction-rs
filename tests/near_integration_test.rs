@@ -3,6 +3,8 @@ use near_crypto::InMemorySigner;
 use near_jsonrpc_client::methods::tx::{RpcTransactionError, TransactionInfo};
 use near_jsonrpc_client::{methods, JsonRpcClient};
 use near_primitives::hash::CryptoHash;
+use near_sdk::base64::prelude::BASE64_STANDARD;
+use near_sdk::base64::Engine;
 use near_workspaces::sandbox;
 use omni_transaction::near::types::{
     Action, ED25519Signature, Signature as OmniSignature, TransferAction,
@@ -90,10 +92,13 @@ async fn test_send_raw_transaction_created_with_omnitransactionbuilder_for_near(
     // Build the signed transaction
     let near_tx_signed = near_tx.build_with_signature(omni_signature);
 
-    let request = methods::send_raw_tx::RpcSendRawTransactionRequest {
-        raw_signed_transaction: near_tx_signed.clone(),
-        wait_until: near_primitives::views::TxExecutionStatus::IncludedFinal,
-    };
+    let request = methods::any::<methods::send_tx::RpcSendTransactionRequest>(
+        "send_tx",
+        serde_json::json!({
+            "signed_tx_base64": BASE64_STANDARD.encode(&near_tx_signed),
+            "wait_until": near_primitives::views::TxExecutionStatus::IncludedFinal,
+        }),
+    );
 
     // Send the transaction
     let sent_at = time::Instant::now();
