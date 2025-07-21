@@ -32,6 +32,7 @@ pub struct NearTransaction {
     pub signer_id: AccountId,
     /// A public key of the access key which was used to sign an account.
     /// Access key holds permissions for calling certain kinds of actions.
+    #[serde(rename = "public_key")]
     pub signer_public_key: PublicKey,
     /// Nonce is used to determine order of transaction in the pool.
     /// It increments for a combination of `signer_id` and `public_key`
@@ -162,7 +163,7 @@ mod tests {
                 }))],
                 omni_actions: vec![OmniAction::FunctionCall(Box::new(OmniFunctionCallAction {
                     method_name: "function1".to_string(),
-                    args: vec![0x01, 0x02, 0x03],
+                    args: Base64VecU8(vec![0x01, 0x02, 0x03]),
                     gas: U64(100),
                     deposit: U128(1),
                 }))],
@@ -409,6 +410,49 @@ mod tests {
     }
 
     #[test]
+    fn test_compare_serde_json_with_near_primitives() {
+        let test_cases = create_test_cases();
+
+        for (i, test_case) in test_cases.iter().enumerate() {
+            let near_primitive_v0_tx: TransactionV0 = TransactionV0 {
+                signer_id: test_case.signer_id.parse().unwrap(),
+                public_key: PublicKey::ED25519(ED25519PublicKey(
+                    test_case
+                        .signer_public_key
+                        .to_public_key_as_bytes()
+                        .unwrap()
+                        .try_into()
+                        .expect("Public key should be 32 bytes"),
+                )),
+                nonce: test_case.nonce,
+                receiver_id: test_case.receiver_id.parse().unwrap(),
+                block_hash: CryptoHash(test_case.block_hash.to_fixed_32_bytes().unwrap()),
+                actions: test_case.near_primitive_actions.clone(),
+            };
+
+            let serialized_near_primitive_v0_tx = serde_json::to_string(&near_primitive_v0_tx)
+                .expect("failed to serialize NEAR transaction");
+
+            let omni_tx = NearTransaction {
+                signer_id: test_case.signer_id.parse().unwrap(),
+                signer_public_key: test_case.signer_public_key.to_public_key().unwrap(),
+                nonce: U64(test_case.nonce),
+                receiver_id: test_case.receiver_id.parse().unwrap(),
+                block_hash: test_case.block_hash.to_block_hash().unwrap(),
+                actions: test_case.omni_actions.clone(),
+            };
+
+            let serialized_omni_tx =
+                serde_json::to_string(&omni_tx).expect("failed to serialize Omni transaction");
+
+            assert_eq!(
+                serialized_near_primitive_v0_tx, serialized_omni_tx,
+                "Test case {i} failed: serialized transactions do not match.\nNEAR: {serialized_near_primitive_v0_tx:?}\nOmni: {serialized_omni_tx:?}"
+            );
+        }
+    }
+
+    #[test]
     fn test_build_with_signature_against_near_primitives_for_ed25519() {
         let test_cases = create_test_cases();
 
@@ -548,7 +592,7 @@ mod tests {
         let input = r#"
         {
             "signer_id": "86a315fdc1c4211787aa2fd78a50041ee581c7fff6cec2535ebec14af5c40381",
-            "signer_public_key": "ed25519:A4ZsCYMqJ1oHFGR2g2mFrwhQvaWmyz8K5c5FvfxEPF52",
+            "public_key": "ed25519:A4ZsCYMqJ1oHFGR2g2mFrwhQvaWmyz8K5c5FvfxEPF52",
             "nonce": 172237399000001,
             "receiver_id": "86a315fdc1c4211787aa2fd78a50041ee581c7fff6cec2535ebec14af5c40381",
             "block_hash": "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ",
@@ -596,7 +640,7 @@ mod tests {
         let input = r#"
         {
             "signer_id": "forgetful-parent.testnet",
-            "signer_public_key": "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
+            "public_key": "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
             "nonce": 1,
             "receiver_id": "forgetful-parent.testnet",
             "block_hash": "4reLvkAWfqk5fsqio1KLudk46cqRz9erQdaHkWZKMJDZ",
