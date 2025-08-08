@@ -1,14 +1,23 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::serde::{Deserialize, Deserializer, Serialize};
 use schemars::JsonSchema;
-use serde::de;
+use serde::{de, Serializer};
 
-#[derive(Serialize, Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, JsonSchema)]
 pub struct BlockHash(pub [u8; 32]);
 
 impl From<[u8; 32]> for BlockHash {
     fn from(data: [u8; 32]) -> Self {
         Self(data)
+    }
+}
+
+impl Serialize for BlockHash {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&bs58::encode(&self.0).into_string())
     }
 }
 
@@ -61,6 +70,27 @@ mod tests {
     use super::*;
     use borsh::BorshDeserialize;
     use near_sdk::serde_json;
+
+    #[test]
+    fn test_compare_serde_json_with_near_primitives() {
+        let block_hash = BlockHash([1; 32]);
+        let block_hash_json = serde_json::to_string(&block_hash).unwrap();
+        let near_primitives_block_hash = near_primitives::hash::CryptoHash(block_hash.0);
+        let near_primitives_block_hash_json =
+            serde_json::to_string(&near_primitives_block_hash).unwrap();
+
+        assert_eq!(block_hash_json, near_primitives_block_hash_json);
+    }
+
+    #[test]
+    fn test_compare_borsh_with_near_primitives() {
+        let block_hash = BlockHash([1; 32]);
+        let block_hash_borsh = borsh::to_vec(&block_hash).unwrap();
+        let near_primitives_block_hash = near_primitives::hash::CryptoHash(block_hash.0);
+        let near_primitives_block_hash_borsh = borsh::to_vec(&near_primitives_block_hash).unwrap();
+
+        assert_eq!(block_hash_borsh, near_primitives_block_hash_borsh);
+    }
 
     #[test]
     fn test_blockhash_deserialize_from_bytes() {
