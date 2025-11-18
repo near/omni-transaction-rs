@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use bs58;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fmt::Debug;
+use std::{borrow::Cow, fmt::Debug};
 
 use crate::constants::{COMPONENT_SIZE, SECP256K1_SIGNATURE_LENGTH};
 
@@ -26,11 +26,11 @@ pub type ComponentBytes = [u8; COMPONENT_SIZE];
 pub struct Secp256K1Signature(pub [u8; SECP256K1_SIGNATURE_LENGTH]);
 
 impl JsonSchema for Secp256K1Signature {
-    fn schema_name() -> String {
-        "Secp256K1Signature".to_owned()
+    fn schema_name() -> Cow<'static, str> {
+        "Secp256K1Signature".into()
     }
 
-    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn json_schema(gen: &mut schemars::generate::SchemaGenerator) -> schemars::Schema {
         <String>::json_schema(gen)
     }
 }
@@ -107,10 +107,39 @@ impl<'de> Deserialize<'de> for Signature {
 
 #[cfg(test)]
 mod tests {
-    use crate::near::utils::SignatureStrExt;
+    use crate::near::utils::{PublicKeyStrExt, SignatureStrExt};
 
     use super::*;
     use serde_json;
+
+    #[test]
+    fn test_compare_serde_json_with_near_primitives() {
+        let bytes = "3s1dvZdQtcAjBksMHFrysqvF63wnyMHPA4owNQmCJZ2EBakZEKdtMsLqrHdKWQjJbSRN6kRknN2WdwSBLWGCokXj".to_fixed_64_bytes().unwrap();
+
+        let signature = Signature::ED25519(ED25519Signature {
+            r: bytes[0..COMPONENT_SIZE].try_into().unwrap(),
+            s: bytes[COMPONENT_SIZE..].try_into().unwrap(),
+        });
+        let signature_json = serde_json::to_string(&signature).unwrap();
+        let near_primitives_signature = near_crypto::Signature::ED25519(bytes.into());
+        let near_primitives_signature_json =
+            serde_json::to_string(&near_primitives_signature).unwrap();
+
+        assert_eq!(
+            signature_json, near_primitives_signature_json,
+            "ED25519 signature is not the same: {signature_json} != {near_primitives_signature_json}"
+        );
+
+        let bytes = bs58::decode("5N5CB9H1dmB9yraLGCo4ZCQTcF24zj4v2NT14MHdH3aVhRoRXrX3AhprHr2w6iXNBZDmjMS1Ntzjzq8Bv6iBvwth6").into_vec().unwrap();
+        let signature = Signature::SECP256K1(Secp256K1Signature(bytes.clone().try_into().unwrap()));
+        let signature_json = serde_json::to_string(&signature).unwrap();
+        let near_primitives_signature = near_crypto::Signature::SECP256K1(
+            near_crypto::Secp256K1Signature::try_from(bytes.as_slice()).unwrap(),
+        );
+        let near_primitives_signature_json =
+            serde_json::to_string(&near_primitives_signature).unwrap();
+        assert_eq!(signature_json, near_primitives_signature_json);
+    }
 
     #[test]
     fn test_deserialize_ed25519_signature() {

@@ -5,6 +5,7 @@ use near_sdk::serde::{Deserialize, Deserializer, Serialize};
 use schemars::JsonSchema;
 use serde::de::{self};
 use serde::ser::{SerializeTuple, Serializer};
+use std::borrow::Cow;
 use std::io::{Error, Write};
 
 #[derive(BorshDeserialize, PartialEq, Eq, Debug, Clone)]
@@ -14,13 +15,32 @@ pub struct Secp256K1PublicKey(pub [u8; SECP256K1_PUBLIC_KEY_LENGTH]);
 #[serde(crate = "near_sdk::serde")]
 pub struct ED25519PublicKey(pub [u8; ED25519_PUBLIC_KEY_LENGTH]);
 
-#[derive(Serialize, PartialEq, Eq, Debug, Clone, JsonSchema)]
+#[derive(PartialEq, Eq, Debug, Clone, JsonSchema)]
 #[serde(crate = "near_sdk::serde")]
 pub enum PublicKey {
     /// 256 bit elliptic curve based public-key.
     ED25519(ED25519PublicKey),
     /// 512 bit elliptic curve based public-key used in Bitcoin's public-key cryptography.
     SECP256K1(Secp256K1PublicKey),
+}
+
+impl std::fmt::Display for PublicKey {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let (key_type, key_data) = match self {
+            Self::ED25519(public_key) => ("ed25519", &public_key.0[..]),
+            Self::SECP256K1(public_key) => ("secp256k1", &public_key.0[..]),
+        };
+        write!(fmt, "{key_type}:{}", bs58::encode(key_data).into_string())
+    }
+}
+
+impl Serialize for PublicKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(self)
+    }
 }
 
 impl BorshSerialize for PublicKey {
@@ -203,11 +223,11 @@ impl<'de> Deserialize<'de> for Secp256K1PublicKey {
 }
 
 impl JsonSchema for Secp256K1PublicKey {
-    fn schema_name() -> String {
-        "Secp256K1PublicKey".to_owned()
+    fn schema_name() -> Cow<'static, str> {
+        "Secp256K1PublicKey".into()
     }
 
-    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn json_schema(gen: &mut schemars::generate::SchemaGenerator) -> schemars::Schema {
         <Vec<u8>>::json_schema(gen)
     }
 }
@@ -217,6 +237,57 @@ mod tests {
     use super::*;
     use borsh;
     use near_sdk::serde_json;
+
+    #[test]
+    fn test_compare_serde_json_with_near_primitives() {
+        let public_key = PublicKey::ED25519(ED25519PublicKey([1; ED25519_PUBLIC_KEY_LENGTH]));
+        let public_key_json = serde_json::to_string(&public_key).unwrap();
+        let near_primitives_public_key = near_crypto::PublicKey::ED25519(
+            near_crypto::ED25519PublicKey([1; ED25519_PUBLIC_KEY_LENGTH]),
+        );
+        let near_primitives_public_key_json =
+            serde_json::to_string(&near_primitives_public_key).unwrap();
+
+        assert_eq!(public_key_json, near_primitives_public_key_json);
+
+        let public_key_secp256k1 =
+            PublicKey::SECP256K1(Secp256K1PublicKey([1; SECP256K1_PUBLIC_KEY_LENGTH]));
+        let public_key_secp256k1_json = serde_json::to_string(&public_key_secp256k1).unwrap();
+        let near_primitives_public_key_secp256k1 = near_crypto::PublicKey::SECP256K1(
+            near_crypto::Secp256K1PublicKey::from([1; SECP256K1_PUBLIC_KEY_LENGTH]),
+        );
+        let near_primitives_public_key_secp256k1_json =
+            serde_json::to_string(&near_primitives_public_key_secp256k1).unwrap();
+        assert_eq!(
+            public_key_secp256k1_json,
+            near_primitives_public_key_secp256k1_json
+        );
+    }
+
+    #[test]
+    fn test_compare_borsh_with_near_primitives() {
+        let public_key = PublicKey::ED25519(ED25519PublicKey([1; ED25519_PUBLIC_KEY_LENGTH]));
+        let public_key_borsh = borsh::to_vec(&public_key).unwrap();
+        let near_primitives_public_key = near_crypto::PublicKey::ED25519(
+            near_crypto::ED25519PublicKey([1; ED25519_PUBLIC_KEY_LENGTH]),
+        );
+        let near_primitives_public_key_borsh = borsh::to_vec(&near_primitives_public_key).unwrap();
+
+        assert_eq!(public_key_borsh, near_primitives_public_key_borsh);
+
+        let public_key_secp256k1 =
+            PublicKey::SECP256K1(Secp256K1PublicKey([1; SECP256K1_PUBLIC_KEY_LENGTH]));
+        let public_key_secp256k1_borsh = borsh::to_vec(&public_key_secp256k1).unwrap();
+        let near_primitives_public_key_secp256k1 = near_crypto::PublicKey::SECP256K1(
+            near_crypto::Secp256K1PublicKey::from([1; SECP256K1_PUBLIC_KEY_LENGTH]),
+        );
+        let near_primitives_public_key_secp256k1_borsh =
+            borsh::to_vec(&near_primitives_public_key_secp256k1).unwrap();
+        assert_eq!(
+            public_key_secp256k1_borsh,
+            near_primitives_public_key_secp256k1_borsh
+        );
+    }
 
     #[test]
     fn test_public_key_serde_json_serialization() {
@@ -235,8 +306,8 @@ mod tests {
 
             // Check if the JSON string contains the correct key type
             match key {
-                PublicKey::ED25519(_) => assert!(serialized.contains("ED25519")),
-                PublicKey::SECP256K1(_) => assert!(serialized.contains("SECP256K1")),
+                PublicKey::ED25519(_) => assert!(serialized.contains("ed25519")),
+                PublicKey::SECP256K1(_) => assert!(serialized.contains("secp256k1")),
             }
         }
     }
