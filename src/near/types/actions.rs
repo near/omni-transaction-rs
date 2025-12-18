@@ -3,9 +3,9 @@ use crate::near::{
     utils::base64_serialization,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::AccountId;
+use near_account_id::AccountId;
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use super::{U128, U64};
 
@@ -20,7 +20,6 @@ use super::{U128, U64};
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub enum Action {
     /// Create an (sub)account using a transaction `receiver_id` as an ID for
     /// a new account ID must pass validation rules described here
@@ -50,7 +49,6 @@ pub enum Action {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct DeployGlobalContractAction {
     #[serde(with = "base64_serialization")]
     #[schemars(with = "String", extend("contentMediaType"="application/octet-stream", "contentEncoding" = "base64", "format" = "byte"))]
@@ -69,7 +67,6 @@ pub struct DeployGlobalContractAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct UseGlobalContractAction {
     pub contract_identifier: GlobalContractIdentifier,
 }
@@ -85,7 +82,6 @@ pub struct UseGlobalContractAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub enum GlobalContractDeployMode {
     /// Contract is deployed under its code hash.
     /// Users will be able reference it by that hash.
@@ -108,7 +104,6 @@ pub enum GlobalContractDeployMode {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub enum GlobalContractIdentifier {
     CodeHash(BlockHash),
     AccountId(AccountId),
@@ -125,7 +120,6 @@ pub enum GlobalContractIdentifier {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct CreateAccountAction {}
 
 #[derive(
@@ -139,7 +133,6 @@ pub struct CreateAccountAction {}
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct DeployContractAction {
     #[serde(with = "base64_serialization")]
     #[schemars(with = "String", extend("contentMediaType"="application/octet-stream", "contentEncoding" = "base64", "format" = "byte"))]
@@ -157,7 +150,6 @@ pub struct DeployContractAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct FunctionCallAction {
     pub method_name: String,
     #[serde(with = "base64_serialization")]
@@ -178,7 +170,6 @@ pub struct FunctionCallAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct TransferAction {
     pub deposit: U128,
 }
@@ -194,7 +185,6 @@ pub struct TransferAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct StakeAction {
     /// Amount of tokens to stake.
     pub stake: U128,
@@ -213,7 +203,6 @@ pub struct StakeAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct AddKeyAction {
     /// A public key which will be associated with an access_key
     pub public_key: PublicKey,
@@ -232,7 +221,6 @@ pub struct AddKeyAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct AccessKey {
     /// Nonce for this access key, used for tx nonce generation. When access key is created, nonce
     /// is set to `(block_height - 1) * 1e6` to avoid tx hash collision on access key re-creation.
@@ -253,7 +241,6 @@ pub struct AccessKey {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub enum AccessKeyPermission {
     FunctionCall(FunctionCallPermission),
     /// Grants full access to the account.
@@ -272,7 +259,6 @@ pub enum AccessKeyPermission {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct FunctionCallPermission {
     pub allowance: Option<U128>,
     pub receiver_id: String,
@@ -290,7 +276,6 @@ pub struct FunctionCallPermission {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct DeleteKeyAction {
     /// A public key associated with the access_key to be deleted.
     pub public_key: PublicKey,
@@ -307,7 +292,6 @@ pub struct DeleteKeyAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct DeleteAccountAction {
     pub beneficiary_id: AccountId,
 }
@@ -323,7 +307,6 @@ pub struct DeleteAccountAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct NonDelegateAction(Action);
 
 impl TryFrom<Action> for NonDelegateAction {
@@ -347,7 +330,6 @@ impl TryFrom<Action> for NonDelegateAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct DelegateAction {
     pub sender_id: AccountId,
     pub receiver_id: AccountId,
@@ -368,7 +350,6 @@ pub struct DelegateAction {
     Eq,
     JsonSchema,
 )]
-#[serde(crate = "near_sdk::serde")]
 pub struct SignedDelegateAction {
     pub delegate_action: DelegateAction,
     pub signature: Signature,
@@ -379,7 +360,8 @@ mod tests {
     use super::*;
     use crate::constants::ED25519_PUBLIC_KEY_LENGTH;
     use crate::near::types::public_key::ED25519PublicKey;
-    use near_sdk::serde_json;
+    use near_primitives::types::{Balance, Gas};
+    use serde_json;
 
     use near_primitives::action::{
         Action as NearPrimitiveAction, AddKeyAction as NearPrimitiveAddKeyAction,
@@ -418,8 +400,8 @@ mod tests {
                 NearPrimitiveAction::FunctionCall(Box::new(NearPrimitiveFunctionCallAction {
                     method_name: "test".to_string(),
                     args: vec![4, 5, 6],
-                    gas: 1000000,
-                    deposit: 0,
+                    gas: Gas::from_gas(1000000),
+                    deposit: Balance::ZERO,
                 })),
             ),
             (
@@ -427,7 +409,7 @@ mod tests {
                     deposit: U128(1000000000),
                 }),
                 NearPrimitiveAction::Transfer(NearPrimitiveTransferAction {
-                    deposit: 1000000000,
+                    deposit: Balance::from_yoctonear(1000000000),
                 }),
             ),
             (
@@ -438,7 +420,7 @@ mod tests {
                     )),
                 })),
                 NearPrimitiveAction::Stake(Box::new(NearPrimitiveStakeAction {
-                    stake: 100000000,
+                    stake: Balance::from_yoctonear(100000000),
                     public_key: near_crypto::PublicKey::ED25519(near_crypto::ED25519PublicKey(
                         [0; ED25519_PUBLIC_KEY_LENGTH],
                     )),
