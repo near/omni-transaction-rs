@@ -2,6 +2,16 @@
 
 Library to construct transactions for different chains inside Near contracts and Rust clients.
 
+<p>
+    <a href="https://docs.rs/omni-transaction"><img src="https://docs.rs/omni-transaction/badge.svg?style=flat-square" alt="Reference Documentation" /></a>
+    <a href="https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/"><img src="https://img.shields.io/badge/rustc-1.85+-lightgray.svg?style=flat-square" alt="MSRV" /></a>
+    <a href="https://crates.io/crates/omni-transaction"><img src="https://img.shields.io/crates/v/omni-transaction.svg?style=flat-square" alt="Crates.io version" /></a>
+    <a href="https://crates.io/crates/omni-transaction"><img src="https://img.shields.io/crates/d/omni-transaction.svg?style=flat-square" alt="Download" /></a>
+    <a href="http://near.chat"><img src="https://img.shields.io/discord/490367152054992913?style=flat-square&label=discord&color=lightgreen" alt="Join the community on Discord" /></a>
+    <a href="https://t.me/NEAR_Tools_Community_Group"><img src="https://img.shields.io/badge/telegram-online-lightgreen?style=flat-square" alt="Join the community on Telegram" /></a>
+    <a href="https://x.com/nearprotocol"><img src="https://img.shields.io/twitter/follow/NEARProtocol" alt="Join the community on Twitter" /></a>
+  </p>
+
 [![Telegram chat][telegram-badge]][telegram-url]
 
 [telegram-badge]: https://img.shields.io/endpoint?color=neon&style=for-the-badge&url=https://tg.sumanjay.workers.dev/chain_abstraction
