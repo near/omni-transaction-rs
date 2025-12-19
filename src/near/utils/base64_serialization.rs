@@ -1,4 +1,4 @@
-/// Convenience module to allow annotating a serde structure as base64 bytes.
+//! Convenience module to allow annotating a serde structure as base64 bytes.
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{de, Deserialize, Deserializer, Serializer};
 

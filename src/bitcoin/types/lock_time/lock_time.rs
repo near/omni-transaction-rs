@@ -1,18 +1,14 @@
-use crate::bitcoin::{
-    encoding::{Decodable, Encodable},
-    types::lock_time::constants::LOCK_TIME_THRESHOLD,
-};
+use crate::bitcoin::encoding::{Decodable, Encodable};
 
 use super::{height::Height, time::Time};
-use std::{
-    fmt,
-    io::{BufRead, Write},
-};
+use std::io::{BufRead, Write};
 
+#[cfg(feature = "borsh")]
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "schemars")]
 use schemars::JsonSchema;
-use serde::Deserializer;
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// Locktime itself is an unsigned 4-byte integer which can be parsed two ways:
 ///
@@ -24,9 +20,10 @@ use serde::{Deserialize, Serialize};
 /// The transaction can be added to any block whose block time is greater than the locktime.
 ///
 /// [Bitcoin Devguide]: https://developer.bitcoin.org/devguide/transactions.html#locktime-and-sequence-number
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, BorshSerialize, BorshDeserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct LockTime(u32);
 
 impl LockTime {
@@ -77,11 +74,16 @@ impl Decodable for LockTime {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for LockTime {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
+        use crate::bitcoin::types::lock_time::constants::LOCK_TIME_THRESHOLD;
+
+        use std::fmt;
+
         struct StringOrNumberVisitor;
 
         impl serde::de::Visitor<'_> for StringOrNumberVisitor {
@@ -175,6 +177,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_locktime_serialization() {
         let locktime = LockTime::from_height(100).unwrap();
         let serialized = serde_json::to_string(&locktime).unwrap();
@@ -184,6 +187,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "borsh")]
     fn test_locktime_borsh_serialization() {
         let locktime = LockTime::from_height(100).unwrap();
         let serialized = borsh::to_vec(&locktime).unwrap();
@@ -193,6 +197,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "borsh")]
     fn test_locktime_borsh_serialization_time() {
         let locktime = LockTime::from_time(Time::MIN + 100).unwrap();
         let serialized = borsh::to_vec(&locktime).unwrap();
@@ -202,6 +207,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "borsh")]
     fn test_locktime_borsh_serialization_roundtrip() {
         let original = LockTime::from_height(Height::MAX).unwrap();
         let serialized = borsh::to_vec(&original).unwrap();
@@ -222,6 +228,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_from_json_locktime() {
         let json = r#"0"#;
 
@@ -230,6 +237,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_serde_json_locktime_with_number_as_string() {
         let json = r#""0""#;
 

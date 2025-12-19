@@ -1,5 +1,8 @@
+#[cfg(feature = "borsh")]
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "schemars")]
 use schemars::JsonSchema;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::{BufRead, Write};
@@ -19,8 +22,10 @@ use super::{
 /// or you can do it from a JSON.
 ///
 /// ```rust
+/// use omni_transaction::bitcoin::types::{Amount, Hash, LockTime, OutPoint, ScriptBuf, Sequence, Txid, TxIn, TxOut, Version, Witness};
+///
 /// // The first case would be as follows:
-/// let omni_tx = BitcoinTransaction {
+/// let omni_tx = omni_transaction::bitcoin::BitcoinTransaction {
 ///     version: Version::One,
 ///     lock_time: LockTime::from_height(1000000).unwrap(),
 ///     input: vec![TxIn {
@@ -32,13 +37,15 @@ use super::{
 ///         sequence: Sequence::default(),
 ///         witness: Witness::default(),
 ///     }],
-///    output: vec![TxOut {
-///        value: Amount::from_sat(10000),
+///     output: vec![TxOut {
+///         value: Amount::from_sat(10000),
 ///         script_pubkey: ScriptBuf::default(),
-///    }],
+///     }],
 /// };
 ///
 /// // If you prefer to do it from a JSON:
+/// # #[cfg(feature = "serde_json")]
+/// # let _ = {
 /// let json_value = r#"
 /// {
 ///     "version": "1",
@@ -51,7 +58,7 @@ use super::{
 ///         "script_sig": [],
 ///         "sequence": 4294967295,
 ///         "witness": []
-///    }],s
+///     }],
 ///     "output": [{
 ///         "value": 1,
 ///         "script_pubkey": "76a9148356ecd5f1761e60c144dc2f4de6bf7d8be7690688ad"
@@ -62,19 +69,13 @@ use super::{
 ///    }]
 /// }
 /// "#;
-/// let tx = BitcoinTransaction::from_json(json_value).unwrap();
-///
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    BorshSerialize,
-    BorshDeserialize,
-    JsonSchema,
-)]
+/// let tx = omni_transaction::bitcoin::BitcoinTransaction::from_json(json_value).unwrap();
+/// # };
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct BitcoinTransaction {
     /// The protocol version, is currently expected to be 1 or 2 (BIP 68).
     pub version: Version,
@@ -260,6 +261,7 @@ impl BitcoinTransaction {
     }
 
     /// Serialise a JSON representation of the transaction into a BitcoinTransaction struct
+    #[cfg(feature = "serde_json")]
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         let tx: Self = serde_json::from_str(json)?;
         Ok(tx)
@@ -564,6 +566,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "serde", feature = "serde_json"))]
     fn test_from_json_bitcoin_transaction() {
         let json = r#"
         {
@@ -598,6 +601,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "serde", feature = "serde_json"))]
     fn test_from_json_bitcoin_transaction_2() {
         let json = r#"
         {
@@ -664,6 +668,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "serde", feature = "serde_json"))]
     fn test_from_json_bitcoin_transaction_3() {
         let json = r#"
         {
@@ -730,6 +735,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "serde", feature = "serde_json"))]
     fn test_from_json_bitcoin_transaction_4() {
         let json = r#"
             {
@@ -767,6 +773,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "serde", feature = "serde_json"))]
     fn test_from_json_bitcoin_transaction_5() {
         let json_data = r#"
         {

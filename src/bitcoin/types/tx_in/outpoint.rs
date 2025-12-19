@@ -1,10 +1,10 @@
-use std::{
-    fmt,
-    io::{BufRead, Write},
-};
+use std::io::{BufRead, Write};
 
+#[cfg(feature = "borsh")]
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "schemars")]
 use schemars::JsonSchema;
+#[cfg(feature = "serde")]
 use serde::{de::MapAccess, Deserialize, Deserializer, Serialize};
 
 use super::hash::Hash;
@@ -14,12 +14,19 @@ use crate::bitcoin::encoding::{Decodable, Encodable};
 
 /// A reference to a transaction output.
 ///
+/// ### Serialization
+///
+/// When both `serde` and `serde_json` features are enabled, OutPoint supports flexible JSON
+/// deserialization (accepts txid as hex string or byte array, vout as number or string).
+/// When only `serde` feature is enabled, OutPoint can be serialized but not deserialized from JSON.
+///
 /// ### Bitcoin Core References
 ///
 /// * [COutPoint definition](https://github.com/bitcoin/bitcoin/blob/345457b542b6a980ccfbc868af0970a6f91d1b82/src/primitives/transaction.h#L26)
-#[derive(
-    Debug, Copy, Clone, Eq, PartialEq, Serialize, BorshSerialize, BorshDeserialize, JsonSchema,
-)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct OutPoint {
     /// The referenced transaction's txid.
     pub txid: Txid,
@@ -74,6 +81,7 @@ impl Decodable for OutPoint {
     }
 }
 
+#[cfg(all(feature = "serde", feature = "serde_json"))]
 impl<'de> Deserialize<'de> for OutPoint {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -83,12 +91,14 @@ impl<'de> Deserialize<'de> for OutPoint {
     }
 }
 
+#[cfg(all(feature = "serde", feature = "serde_json"))]
 struct OutPointVisitor;
 
+#[cfg(all(feature = "serde", feature = "serde_json"))]
 impl<'de> serde::de::Visitor<'de> for OutPointVisitor {
     type Value = OutPoint;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("a map with txid as a hex string and vout as a number or string")
     }
 
@@ -179,6 +189,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "serde", feature = "serde_json"))]
     fn test_serde_json_outpoint() {
         let json_string = r#"{
             "txid":"bc25cc0dddd0a202c21e66521a692c0586330a9a9dcc38ccd9b4d2093037f31a",
@@ -202,6 +213,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "serde", feature = "serde_json"))]
     fn test_serde_json_outpoint_with_string_vout() {
         let json_string = r#"{
             "txid":"bc25cc0dddd0a202c21e66521a692c0586330a9a9dcc38ccd9b4d2093037f31a",
@@ -225,6 +237,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "serde", feature = "serde_json"))]
     fn test_serde_json_outpoint_with_arrays() {
         let json_string = r#"{
             "txid": [59, 103, 22, 67, 189, 12, 138, 114, 42, 90, 207, 173, 211, 254, 197, 194, 92, 65, 224, 168, 146, 169, 213, 217, 184, 81, 123, 217, 19, 81, 69, 71],

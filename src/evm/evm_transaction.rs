@@ -3,8 +3,11 @@ use super::types::{AccessList, Address, Signature};
 use super::utils::parse_eth_address;
 use crate::constants::EIP_1559_TYPE;
 use rlp::RlpStream;
+#[cfg(feature = "schemars")]
 use schemars::JsonSchema;
+#[cfg(feature = "serde")]
 use serde::de::{Error as DeError, Visitor};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
 
@@ -12,15 +15,23 @@ use std::fmt;
 /// ###### Example:
 ///
 /// ```rust
+/// use omni_transaction::evm::utils::parse_eth_address;
+/// use omni_transaction::evm::types::Address;
+/// use alloy_primitives::address;
+///
+/// const MAX_FEE_PER_GAS: u128 = 20_000_000_000;
+/// const MAX_PRIORITY_FEE_PER_GAS: u128 = 1_000_000_000;
+/// const GAS_LIMIT: u128 = 21_000;
+///
 /// let nonce: u64 = 0;
-/// let to: Address = address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
+/// let to: Address = address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045").into();
 /// let value = 10000000000000000u128; // 0.01 ETH
 /// let data: Vec<u8> = vec![];
 /// let chain_id = 1;
 /// let to_address_str = "d8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
 /// let to_address = Some(parse_eth_address(to_address_str));
 /// // Generate using EVMTransaction
-/// let tx = EVMTransaction {
+/// let tx = omni_transaction::evm::EVMTransaction {
 ///     chain_id,
 ///     nonce,
 ///     to: to_address,
@@ -33,22 +44,24 @@ use std::fmt;
 /// };
 /// ```
 ///
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct EVMTransaction {
-    #[serde(deserialize_with = "deserialize_u64")]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u64"))]
     pub chain_id: u64,
-    #[serde(deserialize_with = "deserialize_u64")]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u64"))]
     pub nonce: u64,
-    #[serde(deserialize_with = "deserialize_address")]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_address"))]
     pub to: Option<Address>,
-    #[serde(deserialize_with = "deserialize_u128")]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u128"))]
     pub value: u128,
     pub input: Vec<u8>,
-    #[serde(deserialize_with = "deserialize_u128")]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u128"))]
     pub gas_limit: u128,
-    #[serde(deserialize_with = "deserialize_u128")]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u128"))]
     pub max_fee_per_gas: u128,
-    #[serde(deserialize_with = "deserialize_u128")]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u128"))]
     pub max_priority_fee_per_gas: u128,
     pub access_list: AccessList,
 }
@@ -119,6 +132,7 @@ impl EVMTransaction {
         }
     }
 
+    #[cfg(feature = "serde_json")]
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         let v: serde_json::Value = serde_json::from_str(json)?;
 
@@ -188,6 +202,7 @@ fn parse_u128(value: &str) -> Result<u128, std::num::ParseIntError> {
     )
 }
 
+#[cfg(feature = "serde")]
 fn deserialize_address<'de, D>(deserializer: D) -> Result<Option<Address>, D::Error>
 where
     D: Deserializer<'de>,
@@ -251,6 +266,7 @@ where
     ))
 }
 
+#[cfg(feature = "serde")]
 pub fn deserialize_u64<'de, D>(deserializer: D) -> Result<u64, D::Error>
 where
     D: Deserializer<'de>,
@@ -277,6 +293,7 @@ where
     deserializer.deserialize_any(U64FlexibleVisitor)
 }
 
+#[cfg(feature = "serde")]
 pub fn deserialize_u128<'de, D>(deserializer: D) -> Result<u128, D::Error>
 where
     D: Deserializer<'de>,
@@ -310,8 +327,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "serde")]
     use serde::{Deserialize, Serialize};
 
+    #[cfg(feature = "serde")]
     #[derive(Deserialize, Serialize, Debug)]
     pub struct SignCallbackArgs {
         pub nonce: u64,
@@ -506,6 +525,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde_json")]
     fn test_build_for_signing_for_evm_against_allow_using_json_input() {
         let tx1 = r#"
         {
@@ -568,6 +588,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_deserialize_to_as_array_of_strings() {
         let json = r#"
     {
@@ -596,6 +617,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_deserialize_to_example_with_zeros() {
         let json = r#"
     {
@@ -625,6 +647,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_deserialize_to_works_with_array_of_numbers() {
         let json = r#"
     {

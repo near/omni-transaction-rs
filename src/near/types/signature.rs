@@ -1,18 +1,25 @@
+#[cfg(feature = "borsh")]
 use borsh::{BorshDeserialize, BorshSerialize};
 use bs58;
+#[cfg(feature = "schemars")]
 use schemars::JsonSchema;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{borrow::Cow, fmt::Debug};
 
 use crate::constants::{COMPONENT_SIZE, SECP256K1_SIGNATURE_LENGTH};
 
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub enum Signature {
     ED25519(ED25519Signature),
     SECP256K1(Secp256K1Signature),
 }
 
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct ED25519Signature {
     pub r: ComponentBytes,
     pub s: ComponentBytes,
@@ -21,9 +28,11 @@ pub struct ED25519Signature {
 /// Size of an `R` or `s` component of an Ed25519 signature when serialized as bytes.
 pub type ComponentBytes = [u8; COMPONENT_SIZE];
 
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
 pub struct Secp256K1Signature(pub [u8; SECP256K1_SIGNATURE_LENGTH]);
 
+#[cfg(feature = "schemars")]
 impl JsonSchema for Secp256K1Signature {
     fn schema_name() -> Cow<'static, str> {
         "Secp256K1Signature".into()
@@ -34,6 +43,7 @@ impl JsonSchema for Secp256K1Signature {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for Signature {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -56,6 +66,7 @@ impl Serialize for Signature {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Signature {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -112,6 +123,7 @@ mod tests {
     use serde_json;
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_compare_serde_json_with_near_primitives() {
         let bytes = "3s1dvZdQtcAjBksMHFrysqvF63wnyMHPA4owNQmCJZ2EBakZEKdtMsLqrHdKWQjJbSRN6kRknN2WdwSBLWGCokXj".to_fixed_64_bytes().unwrap();
 
@@ -141,6 +153,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_deserialize_ed25519_signature() {
         let serialized = "\"ed25519:3s1dvZdQtcAjBksMHFrysqvF63wnyMHPA4owNQmCJZ2EBakZEKdtMsLqrHdKWQjJbSRN6kRknN2WdwSBLWGCokXj\"";
         let deserialized: Signature = serde_json::from_str(serialized).unwrap();
@@ -156,6 +169,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_deserialize_secp256k1_signature() {
         let serialized = "\"secp256k1:5N5CB9H1dmB9yraLGCo4ZCQTcF24zj4v2NT14MHdH3aVhRoRXrX3AhprHr2w6iXNBZDmjMS1Ntzjzq8Bv6iBvwth6\"";
         let deserialized: Signature = serde_json::from_str(serialized).unwrap();
@@ -168,6 +182,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_deserialize_with_invalid_data() {
         let invalid = "\"secp256k1:2xVqteU8PWhadHTv99TGh3bSf\"";
 
@@ -175,6 +190,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_serialize_ed25519_signature() {
         // Decode the base58 signature to get the components r and s
         let decoded = "ed25519:3s1dvZdQtcAjBksMHFrysqvF63wnyMHPA4owNQmCJZ2EBakZEKdtMsLqrHdKWQjJbSRN6kRknN2WdwSBLWGCokXj".to_signature_as_bytes().unwrap();
@@ -191,6 +207,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_serialize_secp256k1_signature() {
         // Decode the base58 signature to get the array of bytes
         let decoded = "secp256k1:5N5CB9H1dmB9yraLGCo4ZCQTcF24zj4v2NT14MHdH3aVhRoRXrX3AhprHr2w6iXNBZDmjMS1Ntzjzq8Bv6iBvwth6".to_signature_as_bytes().unwrap();
