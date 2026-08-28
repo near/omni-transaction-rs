@@ -4,8 +4,10 @@ use schemars::JsonSchema;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::encoding::encode_length;
+use super::constants::PACKET_DATA_SIZE;
+use super::encoding::{compact_u16_len, encode_length};
 use super::types::{SolanaMessage, SolanaSignature};
+use crate::constants::ED25519_SIGNATURE_LENGTH;
 
 /// A Solana transaction: a [`SolanaMessage`] (legacy or V0) plus, once
 /// available, the ed25519 signatures of its required signers.
@@ -100,8 +102,54 @@ impl SolanaTransaction {
     ///
     /// Do **not** hash this payload before signing — Solana signatures are
     /// ed25519 over the raw message bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the transaction could never be broadcast because the signed
+    /// form would exceed
+    /// [`PACKET_DATA_SIZE`](super::constants::PACKET_DATA_SIZE) (1232) bytes,
+    /// i.e. if [`Self::signed_size`] is above that limit. The check happens
+    /// here — *before* any signing round trip — so that an oversized
+    /// instruction set is rejected without first paying for (and waiting on)
+    /// a signature; [`Self::build_with_signature`] re-checks the final bytes.
     pub fn build_for_signing(&self) -> Vec<u8> {
-        self.message.to_bytes()
+        let message_bytes = self.message.to_bytes();
+        assert_fits_packet_limit(
+            self.signed_size_for_message_len(message_bytes.len()),
+            "signed transaction (message plus signatures) would be",
+        );
+        message_bytes
+    }
+
+    /// Number of bytes the broadcastable signed transaction will occupy: the
+    /// `compact-u16` signature count, plus 64 bytes per required signature,
+    /// plus the serialized message.
+    ///
+    /// Compare against
+    /// [`PACKET_DATA_SIZE`](super::constants::PACKET_DATA_SIZE) to check a
+    /// transaction without panicking (both [`Self::build_for_signing`] and
+    /// [`Self::build_with_signature`] enforce that limit).
+    pub fn signed_size(&self) -> usize {
+        self.signed_size_for_message_len(self.message.to_bytes().len())
+    }
+
+    /// Panics if the signed transaction would exceed
+    /// [`PACKET_DATA_SIZE`](super::constants::PACKET_DATA_SIZE); used by the
+    /// builder to reject an unbroadcastable transaction at compile time.
+    pub(crate) fn assert_within_packet_limit(&self) {
+        assert_fits_packet_limit(
+            self.signed_size(),
+            "signed transaction (message plus signatures) would be",
+        );
+    }
+
+    /// [`Self::signed_size`] for an already-serialized message of
+    /// `message_len` bytes.
+    fn signed_size_for_message_len(&self, message_len: usize) -> usize {
+        let signatures = self.message.num_required_signatures();
+        compact_u16_len(u16::from(signatures))
+            + usize::from(signatures) * ED25519_SIGNATURE_LENGTH
+            + message_len
     }
 
     /// Returns the broadcastable signed-transaction wire bytes:
@@ -120,7 +168,9 @@ impl SolanaTransaction {
     /// `num_required_signatures`, or if the serialized transaction exceeds
     /// [`PACKET_DATA_SIZE`](super::constants::PACKET_DATA_SIZE) (1232) bytes
     /// — validators reject anything larger, so an oversized transaction is
-    /// always a bug in the caller's instruction set.
+    /// always a bug in the caller's instruction set. That size limit is
+    /// already enforced by [`Self::build_for_signing`] (and by the builder),
+    /// so it should never first surface here, in a signature callback.
     pub fn build_with_signature(&self, signatures: &[SolanaSignature]) -> Vec<u8> {
         let required = usize::from(self.message.num_required_signatures());
         assert_eq!(
@@ -138,12 +188,7 @@ impl SolanaTransaction {
             out.extend_from_slice(&signature.0);
         }
         out.extend_from_slice(&message_bytes);
-        assert!(
-            out.len() <= super::constants::PACKET_DATA_SIZE,
-            "serialized transaction is {} bytes, above Solana's {}-byte packet limit",
-            out.len(),
-            super::constants::PACKET_DATA_SIZE
-        );
+        assert_fits_packet_limit(out.len(), "serialized transaction is");
         out
     }
 
@@ -154,6 +199,15 @@ impl SolanaTransaction {
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
     }
+}
+
+/// Panics if `size` exceeds Solana's packet limit; `subject` completes the
+/// sentence "`{subject} {size} bytes, above ...`".
+fn assert_fits_packet_limit(size: usize, subject: &str) {
+    assert!(
+        size <= PACKET_DATA_SIZE,
+        "{subject} {size} bytes, above Solana's {PACKET_DATA_SIZE}-byte packet limit"
+    );
 }
 
 #[cfg(test)]
@@ -326,14 +380,72 @@ mod tests {
         tx.build_with_signature(&[SolanaSignature([0u8; 64]), SolanaSignature([1u8; 64])]);
     }
 
+    /// V1 legacy transfer whose single instruction carries `len` data bytes.
+    fn legacy_tx_with_data_len(len: usize) -> SolanaTransaction {
+        let mut tx = v1_transaction();
+        if let SolanaMessage::Legacy { instructions, .. } = &mut tx.message {
+            instructions[0].data = vec![0u8; len];
+        }
+        tx
+    }
+
+    /// Largest instruction-data length whose signed transaction still fits
+    /// in a packet (found by probing `signed_size`, which never panics).
+    fn largest_fitting_data_len() -> usize {
+        (0..PACKET_DATA_SIZE)
+            .take_while(|&len| legacy_tx_with_data_len(len).signed_size() <= PACKET_DATA_SIZE)
+            .last()
+            .expect("even an empty instruction must fit")
+    }
+
+    /// `signed_size` must predict exactly what `build_with_signature`
+    /// produces, for every message shape.
+    #[test]
+    fn test_signed_size_matches_built_wire_length() {
+        for tx in [v1_transaction(), v2_transaction(), v4_transaction()] {
+            let wire = tx.build_with_signature(&[SolanaSignature([0u8; 64])]);
+            assert_eq!(tx.signed_size(), wire.len());
+        }
+    }
+
+    /// The packet limit is enforced *before* signing: an oversized
+    /// instruction set must be rejected by `build_for_signing`, not only in
+    /// the signature callback.
+    #[test]
+    #[should_panic(expected = "packet limit")]
+    fn test_build_for_signing_rejects_oversized_transaction() {
+        legacy_tx_with_data_len(2000).build_for_signing();
+    }
+
+    /// One byte over the limit: the *message* alone is still below 1232
+    /// bytes, so only counting the signature bytes catches this — exactly the
+    /// case that used to reach `build_with_signature` (post-MPC) instead.
+    #[test]
+    #[should_panic(expected = "packet limit")]
+    fn test_build_for_signing_rejects_one_byte_over_limit() {
+        let over = legacy_tx_with_data_len(largest_fitting_data_len() + 1);
+        assert!(
+            over.build_for_signing().len() < PACKET_DATA_SIZE,
+            "the message alone must still be under the limit for this test to be meaningful"
+        );
+    }
+
+    /// A transaction exactly at the limit still works end to end.
+    #[test]
+    fn test_transaction_at_packet_limit_round_trips() {
+        let tx = legacy_tx_with_data_len(largest_fitting_data_len());
+        assert_eq!(tx.signed_size(), PACKET_DATA_SIZE);
+        let message_bytes = tx.build_for_signing();
+        assert_eq!(message_bytes, tx.message.to_bytes());
+        let wire = tx.build_with_signature(&[SolanaSignature([7u8; 64])]);
+        assert_eq!(wire.len(), PACKET_DATA_SIZE);
+        assert!(wire.ends_with(&message_bytes));
+    }
+
     #[test]
     #[should_panic(expected = "packet limit")]
     fn test_build_with_signature_rejects_oversized_transaction() {
-        let mut tx = v1_transaction();
-        if let SolanaMessage::Legacy { instructions, .. } = &mut tx.message {
-            instructions[0].data = vec![0u8; 2000];
-        }
-        tx.build_with_signature(&[SolanaSignature([0u8; 64])]);
+        legacy_tx_with_data_len(2000).build_with_signature(&[SolanaSignature([0u8; 64])]);
     }
 
     #[test]

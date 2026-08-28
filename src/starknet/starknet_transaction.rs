@@ -91,8 +91,8 @@ const L1_DATA_NAME: &[u8] = b"L1_DATA";
 ///
 /// [`Self::build_for_signing`] returns the 32-byte big-endian SNIP-8 transaction-hash felt
 /// (the exact value account contracts verify signatures against — nothing hashes it again),
-/// and [`Self::build_with_signature`] returns the `BROADCASTED_INVOKE_TXN_V3` JSON body for
-/// `starknet_addInvokeTransaction`.
+/// and `build_with_signature` (requires the `serde_json` feature) returns the
+/// `BROADCASTED_INVOKE_TXN_V3` JSON body for `starknet_addInvokeTransaction`.
 ///
 /// Note: no `schemars::JsonSchema` derive because [`Felt`] (from `starknet-types-core`)
 /// does not implement `JsonSchema`.

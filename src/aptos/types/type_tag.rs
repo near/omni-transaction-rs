@@ -33,6 +33,17 @@ use serde::{Deserialize, Serialize};
 /// `U16`/`U32`/`U256` were added in bytecode version v6 **after** `Struct` —
 /// never reorder. Indices 11+ (`Function`, `I8`..`I256`) exist upstream and
 /// are intentionally not implemented; never reuse their indices.
+///
+/// # Why this is not shared with the Sui module
+///
+/// The Sui module's `TypeTag` currently declares an identical table, but
+/// the two are deliberately kept separate: each index table is frozen by its
+/// own chain's fork of `move-core-types`, and the forks already diverge
+/// (Aptos has reserved 11+ for `Function`/`I8`..`I256`; Sui evolves
+/// independently, and enforces a different identifier length limit). Sharing
+/// one type would mean that adding a variant for one chain silently changes
+/// the other chain's wire format. Keep them separate and keep both index
+/// tables pinned by tests.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]

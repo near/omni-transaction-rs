@@ -23,6 +23,16 @@ pub fn encode_compact_u16(value: u16, out: &mut Vec<u8>) {
     }
 }
 
+/// Number of bytes the minimal `compact-u16` encoding of `value` occupies
+/// (1, 2 or 3), without serializing it.
+pub const fn compact_u16_len(value: u16) -> usize {
+    match value {
+        0..=0x7f => 1,
+        0x80..=0x3fff => 2,
+        _ => 3,
+    }
+}
+
 /// Appends a length prefix for a collection of `len` elements, panicking if
 /// the length does not fit in a `u16` (the maximum a shortvec can express).
 pub fn encode_length(len: usize, out: &mut Vec<u8>) {
@@ -76,6 +86,18 @@ mod tests {
         for value in [0, 1, u16::MAX - 1, u16::MAX] {
             let reference = bincode::serialize(&solana_short_vec::ShortU16(value)).unwrap();
             assert_eq!(compact_u16(value), reference, "mismatch for {value}");
+        }
+    }
+
+    /// `compact_u16_len` must agree with the encoder for every `u16`.
+    #[test]
+    fn test_compact_u16_len_matches_encoder() {
+        for value in 0..=u16::MAX {
+            assert_eq!(
+                compact_u16_len(value),
+                compact_u16(value).len(),
+                "length mismatch for {value}"
+            );
         }
     }
 

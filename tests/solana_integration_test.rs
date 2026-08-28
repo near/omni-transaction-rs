@@ -7,6 +7,7 @@
 
 use std::str::FromStr;
 
+use omni_transaction::solana::constants::PACKET_DATA_SIZE;
 use omni_transaction::solana::types::{
     AccountMeta as OmniAccountMeta, AddressLookupTableAccount as OmniAddressLookupTableAccount,
     Blockhash, Instruction as OmniInstruction, SolanaAddress, SolanaSignature,
@@ -194,6 +195,106 @@ fn test_v0_lookup_table_round_trip_against_reference() {
         ours.build_with_signature(&[omni_signature(&signature)]),
         reference_wire
     );
+}
+
+/// Builds a memo-only reference transaction with `data_len` instruction bytes
+/// and returns its signed wire length, as the official crates compute it.
+fn reference_signed_len(keypair: &Keypair, data_len: usize) -> usize {
+    let payer = keypair.pubkey();
+    let memo = Instruction {
+        program_id: Pubkey::from_str(MEMO_PROGRAM).unwrap(),
+        accounts: vec![],
+        data: vec![0u8; data_len],
+    };
+    let message = Message::new_with_blockhash(
+        std::slice::from_ref(&memo),
+        Some(&payer),
+        &Hash::from_str(BLOCKHASH).unwrap(),
+    );
+    let signature = keypair.sign_message(&bincode::serialize(&message).unwrap());
+    bincode::serialize(&Transaction {
+        signatures: vec![signature],
+        message,
+    })
+    .unwrap()
+    .len()
+}
+
+/// The 1232-byte packet limit is enforced while the message is compiled —
+/// i.e. before any signature is requested — so a NEAR contract never pays for
+/// an MPC signature it could not broadcast.
+#[test]
+fn test_oversized_transaction_is_rejected_before_signing() {
+    let keypair = Keypair::new_from_array([1u8; 32]);
+    let payer = keypair.pubkey();
+    let memo = Instruction {
+        program_id: Pubkey::from_str(MEMO_PROGRAM).unwrap(),
+        accounts: vec![],
+        data: vec![0u8; 1300],
+    };
+    // The reference crates build this unbroadcastable transaction happily.
+    assert!(reference_signed_len(&keypair, 1300) > PACKET_DATA_SIZE);
+
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let build = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        build_ours(&payer, std::slice::from_ref(&memo), &[])
+    }));
+    std::panic::set_hook(previous_hook);
+
+    let payload = build.expect_err("an oversized transaction must be rejected at build time");
+    let panic_message = payload
+        .downcast_ref::<String>()
+        .cloned()
+        .unwrap_or_else(|| String::from("<non-string panic>"));
+    assert!(
+        panic_message.contains("packet limit"),
+        "unexpected panic message: {panic_message}"
+    );
+}
+
+/// A transaction sitting exactly on the packet limit still builds, signs and
+/// matches the reference wire bytes byte-for-byte — the limit check must not
+/// be off by the signature bytes in either direction.
+#[test]
+fn test_transaction_at_packet_limit_round_trips_against_reference() {
+    let keypair = Keypair::new_from_array([1u8; 32]);
+    let payer = keypair.pubkey();
+
+    // Largest memo payload the reference crates still fit in one packet.
+    let data_len = (0..1300)
+        .rev()
+        .find(|&len| reference_signed_len(&keypair, len) <= PACKET_DATA_SIZE)
+        .expect("some payload must fit");
+    assert_eq!(reference_signed_len(&keypair, data_len), PACKET_DATA_SIZE);
+    assert!(reference_signed_len(&keypair, data_len + 1) > PACKET_DATA_SIZE);
+
+    let memo = Instruction {
+        program_id: Pubkey::from_str(MEMO_PROGRAM).unwrap(),
+        accounts: vec![],
+        data: vec![0u8; data_len],
+    };
+    let reference_message = Message::new_with_blockhash(
+        std::slice::from_ref(&memo),
+        Some(&payer),
+        &Hash::from_str(BLOCKHASH).unwrap(),
+    );
+    let reference_message_bytes = bincode::serialize(&reference_message).unwrap();
+
+    let ours = build_ours(&payer, std::slice::from_ref(&memo), &[]);
+    assert_eq!(ours.signed_size(), PACKET_DATA_SIZE);
+    let payload = ours.build_for_signing();
+    assert_eq!(payload, reference_message_bytes);
+
+    let signature = keypair.sign_message(&payload);
+    let reference_wire = bincode::serialize(&Transaction {
+        signatures: vec![signature],
+        message: reference_message,
+    })
+    .unwrap();
+    let our_wire = ours.build_with_signature(&[omni_signature(&signature)]);
+    assert_eq!(our_wire, reference_wire);
+    assert_eq!(our_wire.len(), PACKET_DATA_SIZE);
 }
 
 /// Deterministic xorshift64 PRNG so the fuzz tests are reproducible without

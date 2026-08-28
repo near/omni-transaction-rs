@@ -39,9 +39,13 @@ impl TxBuilder<SolanaTransaction> for SolanaTransactionBuilder {
     ///
     /// # Panics
     ///
-    /// Panics if `payer` or `recent_blockhash` was not set, or if the
-    /// compiled message would need an account or lookup-table index larger
-    /// than a `u8` (more than 256 keys).
+    /// Panics if `payer` or `recent_blockhash` was not set, if the compiled
+    /// message would need an account or lookup-table index larger than a
+    /// `u8` (more than 256 keys), or if the signed transaction would exceed
+    /// [`PACKET_DATA_SIZE`](crate::solana::constants::PACKET_DATA_SIZE)
+    /// (1232) bytes — such a transaction is unbroadcastable, and rejecting it
+    /// at compile time keeps the caller from paying for a signature it could
+    /// never use.
     fn build(&self) -> SolanaTransaction {
         let payer = self.payer.expect("payer is mandatory");
         let recent_blockhash = self
@@ -50,9 +54,13 @@ impl TxBuilder<SolanaTransaction> for SolanaTransactionBuilder {
         let instructions = self.instructions.clone().unwrap_or_default();
         let lookup_tables = self.address_lookup_tables.clone().unwrap_or_default();
 
-        SolanaTransaction {
+        let transaction = SolanaTransaction {
             message: compile_message(payer, &instructions, recent_blockhash, &lookup_tables),
-        }
+        };
+        // Free size check: the same limit `build_for_signing` enforces, but
+        // raised before any signing round trip is paid for.
+        transaction.assert_within_packet_limit();
+        transaction
     }
 }
 
@@ -501,6 +509,53 @@ mod tests {
         let _ = SolanaTransactionBuilder::new()
             .payer(address(PAYER_HEX))
             .build();
+    }
+
+    /// An instruction set whose signed transaction cannot fit in a packet is
+    /// rejected at compile time, before any signature is requested.
+    #[test]
+    #[should_panic(expected = "packet limit")]
+    fn test_builder_oversized_transaction_panics() {
+        let payer = address(PAYER_HEX);
+        let instruction = Instruction {
+            program_id: address(MEMO_HEX),
+            accounts: vec![],
+            data: vec![0u8; 1300],
+        };
+        let _ = SolanaTransactionBuilder::new()
+            .payer(payer)
+            .instructions(vec![instruction])
+            .recent_blockhash(blockhash())
+            .build();
+    }
+
+    /// A transaction just below the limit still compiles and signs.
+    #[test]
+    fn test_builder_transaction_just_under_packet_limit_builds() {
+        let payer = address(PAYER_HEX);
+        let build_with_data_len = |len: usize| {
+            SolanaTransactionBuilder::new()
+                .payer(payer)
+                .instructions(vec![Instruction {
+                    program_id: address(MEMO_HEX),
+                    accounts: vec![],
+                    data: vec![0u8; len],
+                }])
+                .recent_blockhash(blockhash())
+                .build()
+        };
+
+        // 1 signature (65 bytes) + 3 header + compact key count + 2 * 32 keys
+        // + 32 blockhash + instruction overhead is 170 bytes, so 1060 data
+        // bytes land 2 bytes below the limit.
+        let tx = build_with_data_len(1060);
+        assert_eq!(tx.signed_size(), 1230);
+        assert!(tx.signed_size() <= crate::solana::constants::PACKET_DATA_SIZE);
+        assert_eq!(
+            tx.build_with_signature(&[crate::solana::types::SolanaSignature([0u8; 64])])
+                .len(),
+            tx.signed_size()
+        );
     }
 
     /// More than 256 unique account keys cannot be indexed by a `u8`.

@@ -187,3 +187,22 @@ fn test_json_rpc_payloads_match_reference_base64() {
     // against the reference SDK's independent digest computation.
     assert_eq!(omni_tx.digest_base58(), reference.digest().to_string());
 }
+
+/// A Sui transaction must reference at least one `Coin<SUI>` gas object.
+/// Forgetting the gas payment must fail while building, not after an MPC
+/// signature has been paid for and a validator rejects the transaction.
+#[test]
+#[should_panic(expected = "gas_payment is mandatory")]
+fn test_build_without_gas_payment_panics() {
+    let signing_key = SigningKey::from_bytes(&[0x11u8; 32]);
+    let sender = derive_sui_address(
+        SignatureScheme::Ed25519,
+        &signing_key.verifying_key().to_bytes(),
+    );
+    let _ = TransactionBuilder::new::<SUI>()
+        .sender(sender)
+        .programmable(vec![], vec![])
+        .gas_price(GAS_PRICE)
+        .gas_budget(GAS_BUDGET)
+        .build();
+}

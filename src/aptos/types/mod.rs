@@ -18,6 +18,7 @@ pub use self::authenticator::ED25519_SIGNATURE_LENGTH;
 pub use self::identifier::Identifier;
 pub use self::identifier::IdentifierParseError;
 pub use self::identifier::ModuleId;
+pub use self::identifier::MAX_IDENTIFIER_LENGTH;
 pub use self::payload::EntryFunction;
 pub use self::payload::Multisig;
 pub use self::payload::MultisigTransactionPayload;

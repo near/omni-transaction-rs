@@ -1,5 +1,6 @@
 //! Wallet contract versions and internal transfer messages.
 use core::fmt;
+use std::sync::OnceLock;
 
 #[cfg(feature = "schemars")]
 use schemars::JsonSchema;
@@ -67,18 +68,37 @@ impl WalletVersion {
 
     /// Returns the official wallet code cell for this version (embedded in
     /// the library; its hash equals [`Self::code_hash`]).
+    ///
+    /// The ~1.4 KB code BoC is parsed and hash-verified once per version and
+    /// then cached, so repeated calls (address derivation, `StateInit`
+    /// building) cost a shallow clone instead of a full re-parse plus
+    /// SHA-256 over every cell — the child cells stay shared behind `Arc`.
+    ///
+    /// # Panics
+    ///
+    /// Panics on the first call for a version if the embedded code BoC is
+    /// not valid hex, is not a valid single-root Bag of Cells, or does not
+    /// hash to [`Self::code_hash`] (all impossible for an unmodified build).
     pub fn code_cell(self) -> Cell {
-        let boc = match self {
-            Self::V4R2 => WALLET_V4R2_CODE_BOC,
-            Self::V5R1 => WALLET_V5R1_CODE_BOC,
+        static V4R2_CODE_CELL: OnceLock<Cell> = OnceLock::new();
+        static V5R1_CODE_CELL: OnceLock<Cell> = OnceLock::new();
+
+        let (cache, boc) = match self {
+            Self::V4R2 => (&V4R2_CODE_CELL, WALLET_V4R2_CODE_BOC),
+            Self::V5R1 => (&V5R1_CODE_CELL, WALLET_V5R1_CODE_BOC),
         };
-        let bytes = hex::decode(boc).expect("embedded wallet code is valid hex");
-        let cell = parse_boc_single_root(&bytes).expect("embedded wallet code is a valid BoC");
-        assert!(
-            cell.repr_hash() == self.code_hash(),
-            "embedded wallet code hash mismatch"
-        );
-        cell
+        cache
+            .get_or_init(|| {
+                let bytes = hex::decode(boc).expect("embedded wallet code is valid hex");
+                let cell =
+                    parse_boc_single_root(&bytes).expect("embedded wallet code is a valid BoC");
+                assert!(
+                    cell.repr_hash() == self.code_hash(),
+                    "embedded wallet code hash mismatch"
+                );
+                cell
+            })
+            .clone()
     }
 
     /// Returns the conventional default wallet id for this version on the
@@ -247,6 +267,8 @@ impl fmt::Display for InternalMessage {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::ton::types::boc::serialize_boc;
 
@@ -287,6 +309,33 @@ mod tests {
         assert_eq!(
             hex::encode(WalletVersion::V5R1.code_hash()),
             "20834b7b72b112147e1b2fb457b84e74d1a30f04f737d4f62a668e9552d2b72f"
+        );
+    }
+
+    /// The embedded code cell is parsed once per version: repeated calls
+    /// return equal cells that share the very same child cells (`Arc`), which
+    /// is only possible when the parse result is cached.
+    #[test]
+    fn test_code_cell_is_cached_per_version() {
+        for version in [WalletVersion::V4R2, WalletVersion::V5R1] {
+            let first = version.code_cell();
+            let second = version.code_cell();
+            assert_eq!(first, second);
+            assert_eq!(first.repr_hash(), version.code_hash());
+            assert_eq!(second.repr_hash(), version.code_hash());
+            assert_eq!(first.refs().len(), second.refs().len());
+            assert!(!first.refs().is_empty(), "wallet code has child cells");
+            for (a, b) in first.refs().iter().zip(second.refs()) {
+                assert!(
+                    Arc::ptr_eq(a, b),
+                    "child cells must be shared, i.e. the code cell must be cached"
+                );
+            }
+        }
+        // The two versions must not share a cache slot.
+        assert_ne!(
+            WalletVersion::V4R2.code_cell(),
+            WalletVersion::V5R1.code_cell()
         );
     }
 

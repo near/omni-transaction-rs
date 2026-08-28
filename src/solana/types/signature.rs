@@ -124,6 +124,29 @@ mod tests {
         assert!(SolanaSignature::from_base58("not-base58-0OIl").is_err());
     }
 
+    /// A byte-array form of the wrong length must be rejected by the visitor
+    /// itself, with an error naming the expected length (see the equivalent
+    /// address test for why the data format is not relied on for that).
+    #[test]
+    #[cfg(feature = "serde_json")]
+    fn test_signature_serde_rejects_wrong_length_byte_array() {
+        let json_of = |count: u16| {
+            let elements = (0..count)
+                .map(|i| (i % 256).to_string())
+                .collect::<Vec<_>>();
+            format!("[{}]", elements.join(","))
+        };
+        assert!(serde_json::from_str::<SolanaSignature>(&json_of(64)).is_ok());
+
+        let err = serde_json::from_str::<SolanaSignature>(&json_of(65)).unwrap_err();
+        assert!(
+            err.to_string().contains("expected exactly 64 bytes"),
+            "unexpected error: {err}"
+        );
+        assert!(serde_json::from_str::<SolanaSignature>(&json_of(80)).is_err());
+        assert!(serde_json::from_str::<SolanaSignature>(&json_of(63)).is_err());
+    }
+
     #[test]
     #[cfg(feature = "serde_json")]
     fn test_signature_serde_round_trip() {

@@ -8,9 +8,10 @@ use serde::{Deserialize, Serialize};
 /// Signature hash type for Zcash transparent inputs ([ZIP-244] S.2a).
 ///
 /// Only these six values are consensus-valid in v5 transactions; any other
-/// `hash_type` byte makes the transaction invalid. Additionally,
-/// `SIGHASH_SINGLE` without a corresponding output at the signed input's index
-/// is a consensus failure (unlike Bitcoin's legacy quirk).
+/// `hash_type` byte makes the transaction invalid. `SIGHASH_SINGLE` without a
+/// corresponding output at the signed input's index is still well defined
+/// under ZIP-244 — it commits to the empty output list, rather than hashing
+/// the constant `1` as Bitcoin's legacy quirk does.
 ///
 /// [ZIP-244]: https://zips.z.cash/zip-0244
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

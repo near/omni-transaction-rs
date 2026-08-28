@@ -186,8 +186,6 @@ impl ZcashTransaction {
     ///
     /// * If `input_index` is out of bounds.
     /// * If `spent_utxos.len() != self.input.len()`.
-    /// * For `SIGHASH_SINGLE` when there is no output at `input_index`
-    ///   (consensus-invalid under ZIP-244).
     ///
     /// [ZIP-244]: https://zips.z.cash/zip-0244
     pub fn build_for_signing(

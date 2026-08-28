@@ -213,3 +213,43 @@ fn test_from_json_end_to_end_matches_official_vector() {
     assert_eq!(hex::encode(tx.build_for_signing()), SIGNING_MESSAGE_VECTOR);
     sign_and_check(&tx, SIGNED_ENTRY_FUNCTION_VECTOR);
 }
+
+/// A serialize -> JSON -> deserialize round trip must be lossless for a
+/// `u64::MAX` expiration: the u64 fields go out as decimal strings, so a
+/// JavaScript client's `JSON.parse`/`JSON.stringify` cannot round them to
+/// 18446744073709552000 and change the signing message.
+#[test]
+#[cfg(feature = "serde_json")]
+fn test_json_round_trip_preserves_u64_max_expiration() {
+    let tx = TransactionBuilder::new::<APTOS>()
+        .sender(AccountAddress::from_hex("0xa550c18").unwrap())
+        .sequence_number(0)
+        .payload(TransactionPayload::EntryFunction(EntryFunction::new(
+            ModuleId::new(
+                AccountAddress::from_hex("0x1222").unwrap(),
+                Identifier::new("aptos_coin").unwrap(),
+            ),
+            Identifier::new("transfer").unwrap(),
+            vec![],
+            transfer_args(),
+        )))
+        .max_gas_amount(2000)
+        .gas_unit_price(0)
+        .expiration_timestamp_secs(u64::MAX)
+        .chain_id(4)
+        .build();
+
+    let json = serde_json::to_string(&tx).unwrap();
+    assert!(
+        json.contains(r#""expiration_timestamp_secs":"18446744073709551615""#),
+        "u64 fields must be emitted as decimal strings, got {json}"
+    );
+
+    let back = AptosTransaction::from_json(&json).unwrap();
+    assert_eq!(back, tx);
+    assert_eq!(
+        hex::encode(back.build_for_signing()),
+        SIGNING_MESSAGE_VECTOR
+    );
+    sign_and_check(&back, SIGNED_ENTRY_FUNCTION_VECTOR);
+}

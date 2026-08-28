@@ -8,7 +8,16 @@ use schemars::JsonSchema;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// Maximum byte length of a Move identifier.
+/// Maximum byte length of a Move identifier on Sui.
+///
+/// `move-core-types`' `identifier::is_valid` (the shared Move origin) checks
+/// only the charset; the length is capped by Sui's own protocol config field
+/// `max_move_identifier_len`, which is 128 on mainnet (it was unset — i.e.
+/// unlimited — before protocol version 9). No published Sui module can expose
+/// a longer name, so a longer identifier can never name a callable target.
+///
+/// This is a per-chain limit: Aptos bounds identifiers at 255 bytes instead
+/// (see `omni_transaction::aptos::types::MAX_IDENTIFIER_LENGTH`).
 pub const MAX_IDENTIFIER_LENGTH: usize = 128;
 
 /// A validated Move identifier (module or function name).
@@ -124,6 +133,13 @@ impl JsonSchema for Identifier {
 }
 
 /// The type of a Move value.
+///
+/// Note: the Aptos module's `TypeTag` declares an identical table today,
+/// but the two are deliberately **not** shared — each index table is frozen
+/// by its own chain's fork of `move-core-types`, and the forks already
+/// diverge (different reserved indices upstream, different identifier length
+/// limits). Sharing one type would let a variant added for one chain silently
+/// change the other chain's wire format.
 ///
 /// # BCS
 ///
@@ -343,5 +359,15 @@ mod tests {
         assert!(Identifier::new("has space").is_err());
         assert!(Identifier::new("ünïcode").is_err());
         assert!(Identifier::new("a".repeat(129)).is_err());
+    }
+
+    /// Sui's cap is its protocol config `max_move_identifier_len` = 128,
+    /// which is stricter than Aptos' 255-byte module-format limit. Pinned so
+    /// the two chains' rules cannot be accidentally unified.
+    #[test]
+    fn test_identifier_length_limit_is_sui_128_bytes() {
+        assert_eq!(MAX_IDENTIFIER_LENGTH, 128);
+        assert!(Identifier::new("a".repeat(MAX_IDENTIFIER_LENGTH)).is_ok());
+        assert!(Identifier::new("a".repeat(MAX_IDENTIFIER_LENGTH + 1)).is_err());
     }
 }

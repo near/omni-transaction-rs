@@ -198,8 +198,6 @@ pub fn txid_digest_with_bundle_digests(
 /// * If `input_index` is out of bounds.
 /// * If `spent_utxos.len() != tx.input.len()` (the digest commits to every
 ///   spent coin, see S.2c/S.2d).
-/// * For `SIGHASH_SINGLE` when there is no output at `input_index`
-///   (consensus-invalid under ZIP-244).
 ///
 /// [ZIP-244]: https://zips.z.cash/zip-0244
 pub fn signature_digest_with_bundle_digests(
@@ -223,12 +221,6 @@ pub fn signature_digest_with_bundle_digests(
     );
     const BASE_NONE: u8 = 0x02;
     const BASE_SINGLE: u8 = 0x03;
-    if sighash_type.base_type() == BASE_SINGLE {
-        assert!(
-            input_index < tx.output.len(),
-            "SIGHASH_SINGLE without a corresponding output is consensus-invalid under ZIP-244"
-        );
-    }
 
     // S.2b..S.2e
     let (prevouts_sig, amounts_sig, scriptpubkeys_sig, sequence_sig) =
@@ -250,8 +242,16 @@ pub fn signature_digest_with_bundle_digests(
 
     // S.2f
     let outputs_sig = match sighash_type.base_type() {
-        BASE_NONE => outputs_digest(&[]),
-        BASE_SINGLE => outputs_digest(&tx.output[input_index..=input_index]),
+        BASE_SINGLE if input_index < tx.output.len() => {
+            outputs_digest(&tx.output[input_index..=input_index])
+        }
+        // `SIGHASH_NONE`, and `SIGHASH_SINGLE` with no output at `input_index`,
+        // both commit to the empty output list. ZIP-244 defines the latter as
+        // the personalized empty hash rather than rejecting it (see the final
+        // `else` of `outputs_sig_digest` in `zcash-test-vectors/zip_0244.py`),
+        // so the digest is well defined; whether such a signature is useful is
+        // the caller's decision.
+        BASE_NONE | BASE_SINGLE => outputs_digest(&[]),
         _ => outputs_digest(&tx.output), // SIGHASH_ALL
     };
 
@@ -537,19 +537,40 @@ mod tests {
         );
     }
 
+    /// ZIP-244 S.2f: `SIGHASH_SINGLE` with no output at the signed input's
+    /// index commits to the empty output list instead of being rejected.
+    ///
+    /// Vector 6 has zero transparent outputs, and the official
+    /// `zip_0244.json` leaves its `sighash_single` columns null, so these two
+    /// expected values were derived from an independent reimplementation of
+    /// the S.2 digest tree which reproduces vector 6's four published
+    /// `sighash_all`/`sighash_none`(`_anyone`) values byte-for-byte.
     #[test]
-    #[should_panic(expected = "SIGHASH_SINGLE without a corresponding output")]
-    fn test_sighash_panics_on_single_without_corresponding_output() {
+    fn test_single_without_corresponding_output_uses_empty_outputs_digest() {
         let (tx, spent_utxos, orchard_digest) = official_vector_6();
-        // Vector 6 has zero outputs, so SIGHASH_SINGLE is consensus-invalid.
-        signature_digest_with_bundle_digests(
-            &tx,
-            0,
-            ZcashSighashType::Single,
-            &spent_utxos,
-            &empty_sapling_digest(),
-            &orchard_digest,
-        );
+        assert!(tx.output.is_empty());
+
+        let cases = [
+            (
+                ZcashSighashType::Single,
+                "f039574a6092becc8b3b4987b841584a27bc1af170f59f91139df4c98b57010e",
+            ),
+            (
+                ZcashSighashType::SinglePlusAnyoneCanPay,
+                "7f9d479c3766b0551d1761402beccf9cbc171183fc335003441f36fdcb2daa63",
+            ),
+        ];
+        for (sighash_type, expected) in cases {
+            let sighash = signature_digest_with_bundle_digests(
+                &tx,
+                1,
+                sighash_type,
+                &spent_utxos,
+                &empty_sapling_digest(),
+                &orchard_digest,
+            );
+            assert_eq!(hex::encode(sighash), expected, "type {sighash_type:?}");
+        }
     }
 
     #[test]

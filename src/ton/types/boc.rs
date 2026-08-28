@@ -167,7 +167,12 @@ impl<'a> Reader<'a> {
         let bytes = self.take(width)?;
         let mut value = 0usize;
         for &b in bytes {
-            value = value << 8 | usize::from(b);
+            // `off_bytes` may be up to 8, which does not fit a 32-bit
+            // `usize` (wasm32): report a header error instead of wrapping.
+            value = value
+                .checked_mul(256)
+                .and_then(|v| v.checked_add(usize::from(b)))
+                .ok_or(BocError::InvalidHeader)?;
         }
         Ok(value)
     }
@@ -178,6 +183,10 @@ impl<'a> Reader<'a> {
 /// Accepts the generic `serialized_boc#b5ee9c72` layout with or without
 /// index and CRC32-C (the checksum is verified when present). Only ordinary
 /// level-0 cells are supported.
+///
+/// Safe on untrusted input: every announced count is checked against the
+/// bytes that remain before anything is allocated, so a hostile header
+/// cannot trigger an out-of-memory abort.
 ///
 /// # Errors
 ///
@@ -206,6 +215,35 @@ pub fn parse_boc(bytes: &[u8]) -> Result<Vec<Cell>, BocError> {
     if root_count == 0 || root_count > cell_count || absent_count != 0 {
         return Err(BocError::InvalidHeader);
     }
+    // Every count in the header comes straight off the wire, so validate all
+    // of them against the bytes that actually remain *before* allocating
+    // anything: a 23-byte input announcing `cell_count = 0xFFFFFFFF` would
+    // otherwise ask for a ~200 GB vector (abort on native, "capacity
+    // overflow" on wasm32).
+    let remaining = bytes.len() - r.pos;
+    // Each cell record occupies at least its two descriptor bytes (d1, d2),
+    // so the announced cell data must have room for all of them.
+    let min_cells_size = cell_count.checked_mul(2).ok_or(BocError::InvalidHeader)?;
+    if min_cells_size > total_cells_size {
+        return Err(BocError::InvalidHeader);
+    }
+    // Root list, optional index, cell data and optional checksum must all fit
+    // in the remaining input.
+    let index_size = if has_idx {
+        cell_count.checked_mul(off_bytes)
+    } else {
+        Some(0)
+    };
+    let announced_size = index_size
+        .and_then(|index_size| index_size.checked_add(total_cells_size))
+        .and_then(|n| n.checked_add(if has_crc { 4 } else { 0 }))
+        .and_then(|n| root_count.checked_mul(size).and_then(|r| n.checked_add(r)))
+        .ok_or(BocError::UnexpectedEof)?;
+    if announced_size > remaining {
+        return Err(BocError::UnexpectedEof);
+    }
+    // `cell_count <= total_cells_size / 2 <= remaining / 2` from here on, so
+    // the allocations below are bounded by the input length.
     let mut root_indices = Vec::with_capacity(root_count);
     for _ in 0..root_count {
         let idx = r.read_be(size)?;
@@ -391,6 +429,52 @@ mod tests {
         assert_eq!(parsed.refs()[0], parsed.refs()[1]);
         // 2 unique cells: parent + one shared leaf.
         assert_eq!(boc[6], 2);
+    }
+
+    /// A hostile 23-byte header announcing `cell_count = 0xFFFFFFFF` must be
+    /// rejected from the header alone: allocating for it would abort the
+    /// process (or panic with "capacity overflow" on wasm32).
+    #[test]
+    fn test_parse_rejects_oversized_cell_count_without_allocating() {
+        // magic | flags(size=4) | off_bytes=1 | cells=0xFFFFFFFF | roots=1 |
+        // absent=0 | tot_cells_size=0 | root_list=[0]
+        let hostile = hex::decode("b5ee9c720401ffffffff00000001000000000000000000").unwrap();
+        assert_eq!(hostile.len(), 23);
+        assert_eq!(parse_boc(&hostile).unwrap_err(), BocError::InvalidHeader);
+        assert_eq!(
+            parse_boc_single_root(&hostile).unwrap_err(),
+            BocError::InvalidHeader
+        );
+        // The same header with a huge `tot_cells_size` (so the two-bytes-per-cell
+        // check passes) is rejected as truncated instead.
+        let hostile = hex::decode("b5ee9c7204047fffffff0000000100000000fffffffe00000000").unwrap();
+        assert_eq!(parse_boc(&hostile).unwrap_err(), BocError::UnexpectedEof);
+        // Legitimate BoCs keep parsing.
+        for cell in [Cell::empty(), tree()] {
+            for with_crc in [false, true] {
+                let boc = serialize_boc(&cell, with_crc);
+                assert_eq!(
+                    parse_boc_single_root(&boc).unwrap().repr_hash(),
+                    cell.repr_hash()
+                );
+            }
+        }
+    }
+
+    /// A `tot_cells_size` larger than the input is rejected before the cell
+    /// data is read.
+    #[test]
+    fn test_parse_rejects_cells_size_larger_than_input() {
+        let mut boc = serialize_boc(&tree(), false);
+        assert_eq!(boc[9], 0x11); // tot_cells_size of the pinned vector
+        boc[9] = 0xFF;
+        assert_eq!(parse_boc(&boc).unwrap_err(), BocError::UnexpectedEof);
+        // A `cell_count` inconsistent with `tot_cells_size` (fewer than two
+        // bytes per cell) is a header error.
+        let mut boc = serialize_boc(&tree(), false);
+        assert_eq!(boc[6], 0x03); // cell_count
+        boc[6] = 0x0A;
+        assert_eq!(parse_boc(&boc).unwrap_err(), BocError::InvalidHeader);
     }
 
     #[test]

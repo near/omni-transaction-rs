@@ -127,8 +127,8 @@ impl SuiTransaction {
     ///   again; Sui validators run `ed25519_verify(digest, signature)`.
     /// - **secp256k1**: Sui ECDSA hashes the message with SHA-256
     ///   internally, so the scalar actually signed is
-    ///   `sha256(build_for_signing())` — see
-    ///   [`Self::build_secp256k1_sign_hash`].
+    ///   `sha256(build_for_signing())` — see `build_secp256k1_sign_hash`
+    ///   (requires the `sha2` feature).
     pub fn build_for_signing(&self) -> Vec<u8> {
         blake2b256(&self.build_intent_message()).to_vec()
     }

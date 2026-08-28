@@ -6,9 +6,19 @@ lint:
 fmt:
     cargo fmt --check
 
-# Check docs
+# Check docs (per feature too: a doc link to a cfg-gated item only dangles
+# when that item is compiled out, which the all-features build never catches)
 doc:
     RUSTDOCFLAGS="-D warnings" cargo doc
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --no-default-features --features near
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --no-default-features --features evm
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --no-default-features --features bitcoin
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --no-default-features --features solana
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --no-default-features --features aptos
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --no-default-features --features sui
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --no-default-features --features zcash
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --no-default-features --features starknet
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --no-default-features --features ton
     
 # Verify all compiles
 check:

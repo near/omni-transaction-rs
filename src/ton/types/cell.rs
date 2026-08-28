@@ -181,8 +181,9 @@ impl fmt::Debug for Cell {
 }
 
 // The JSON form of a cell is its Bag of Cells serialization (with CRC32-C)
-// encoded as base64, matching what TON tooling exchanges; the wire format is
-// the hand-rolled cell/BoC encoding and is never derived from serde.
+// encoded as base64, matching what TON tooling exchanges; hex is accepted on
+// the way in as well. The wire format is the hand-rolled cell/BoC encoding
+// and is never derived from serde.
 #[cfg(feature = "serde")]
 impl serde::Serialize for Cell {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -206,13 +207,32 @@ impl<'de> serde::Deserialize<'de> for Cell {
         use serde::de::Error as DeError;
 
         let text = String::deserialize(deserializer)?;
-        let bytes = STANDARD
-            .decode(&text)
-            .or_else(|_| URL_SAFE.decode(&text))
-            .or_else(|_| hex::decode(&text))
-            .map_err(|_| DeError::custom("expected a base64 or hex encoded Bag of Cells"))?;
+        // Probe hex *first*: every even-length hex string is also valid
+        // standard base64, so trying base64 first would decode the documented
+        // hex form into garbage instead. A base64-encoded BoC always starts
+        // with 't' (the magic byte 0xB5 maps to base64 index 45), so it can
+        // never be mistaken for hex.
+        let bytes = if is_hex(&text) {
+            hex::decode(&text).map_err(|_| DeError::custom(EXPECTED_BOC_STRING))?
+        } else {
+            STANDARD
+                .decode(&text)
+                .or_else(|_| URL_SAFE.decode(&text))
+                .map_err(|_| DeError::custom(EXPECTED_BOC_STRING))?
+        };
         super::boc::parse_boc_single_root(&bytes).map_err(DeError::custom)
     }
+}
+
+/// Error message shared by the [`Cell`] deserializer's decoding branches.
+#[cfg(feature = "serde")]
+const EXPECTED_BOC_STRING: &str = "expected a base64 or hex encoded Bag of Cells";
+
+/// Returns `true` if `text` is a non-empty, even-length string of ASCII
+/// hex digits, i.e. a candidate for [`hex::decode`].
+#[cfg(feature = "serde")]
+fn is_hex(text: &str) -> bool {
+    !text.is_empty() && text.len() % 2 == 0 && text.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 // The schema mirrors the serde form (base64 string), which a structural
@@ -285,6 +305,13 @@ impl CellBuilder {
         if self.bit_len >= MAX_CELL_BITS {
             return Err(CellError::CellOverflow);
         }
+        self.push_bit(bit);
+        Ok(self)
+    }
+
+    /// Appends one bit without checking the capacity; callers must have
+    /// verified that it fits.
+    fn push_bit(&mut self, bit: bool) {
         if self.bit_len % 8 == 0 {
             self.data.push(0);
         }
@@ -293,7 +320,50 @@ impl CellBuilder {
             self.data[i / 8] |= 1 << (7 - i % 8);
         }
         self.bit_len += 1;
-        Ok(self)
+    }
+
+    /// Reserves room for `bits` more bits so the per-bit loops below do not
+    /// grow the buffer one byte at a time.
+    fn reserve_bits(&mut self, bits: u16) {
+        let needed = usize::from(self.bit_len + bits).div_ceil(8);
+        self.data.reserve(needed.saturating_sub(self.data.len()));
+    }
+
+    /// Appends the `bits` lowest bits of `value` (big-endian) without
+    /// checking the capacity; callers must have verified that they fit.
+    ///
+    /// When both the builder and the value are byte-aligned the bytes are
+    /// appended whole, which is bit-for-bit identical to the per-bit path.
+    fn append_uint(&mut self, value: u128, bits: u16) {
+        if self.bit_len % 8 == 0 && bits % 8 == 0 {
+            let be = value.to_be_bytes();
+            self.data
+                .extend_from_slice(&be[be.len() - usize::from(bits / 8)..]);
+            self.bit_len += bits;
+            return;
+        }
+        self.reserve_bits(bits);
+        for i in (0..bits).rev() {
+            self.push_bit(value >> i & 1 == 1);
+        }
+    }
+
+    /// Appends the first `bits` bits of `data` (MSB-first) without checking
+    /// the capacity; callers must have verified that they fit and that
+    /// `data` holds at least `bits` bits.
+    ///
+    /// When both the builder and the length are byte-aligned the bytes are
+    /// appended whole, which is bit-for-bit identical to the per-bit path.
+    fn append_bits(&mut self, data: &[u8], bits: u16) {
+        if self.bit_len % 8 == 0 && bits % 8 == 0 {
+            self.data.extend_from_slice(&data[..usize::from(bits / 8)]);
+            self.bit_len += bits;
+            return;
+        }
+        self.reserve_bits(bits);
+        for i in 0..usize::from(bits) {
+            self.push_bit(data[i / 8] >> (7 - i % 8) & 1 == 1);
+        }
     }
 
     /// Stores `bits` bits (at most 128) of `value`, big-endian.
@@ -307,9 +377,10 @@ impl CellBuilder {
         if bits > 128 || (bits < 128 && value >> bits != 0) {
             return Err(CellError::ValueOutOfRange);
         }
-        for i in (0..bits).rev() {
-            self = self.store_bit(value >> i & 1 == 1)?;
+        if bits > self.remaining_bits() {
+            return Err(CellError::CellOverflow);
         }
+        self.append_uint(value, bits);
         Ok(self)
     }
 
@@ -346,9 +417,13 @@ impl CellBuilder {
     ///
     /// Returns [`CellError::CellOverflow`] if the cell is full.
     pub fn store_slice(mut self, bytes: &[u8]) -> Result<Self, CellError> {
-        for &b in bytes {
-            self = self.store_uint(b.into(), 8)?;
+        // Saturating conversion: anything past 1023 bits overflows the cell
+        // anyway, so the exact value does not matter.
+        let bits = u16::try_from(bytes.len().saturating_mul(8)).unwrap_or(u16::MAX);
+        if bits > self.remaining_bits() {
+            return Err(CellError::CellOverflow);
         }
+        self.append_bits(bytes, bits);
         Ok(self)
     }
 
@@ -360,12 +435,16 @@ impl CellBuilder {
     /// [`CellError::ValueOutOfRange`] if `data` is shorter than `bit_len`
     /// bits.
     pub fn store_bits(mut self, data: &[u8], bit_len: usize) -> Result<Self, CellError> {
-        if data.len() * 8 < bit_len {
+        if data.len() < bit_len.div_ceil(8) {
             return Err(CellError::ValueOutOfRange);
         }
-        for i in 0..bit_len {
-            self = self.store_bit(data[i / 8] >> (7 - i % 8) & 1 == 1)?;
+        // Saturating conversion: anything past 1023 bits overflows the cell
+        // anyway, so the exact value does not matter.
+        let bits = u16::try_from(bit_len).unwrap_or(u16::MAX);
+        if bits > self.remaining_bits() {
+            return Err(CellError::CellOverflow);
         }
+        self.append_bits(data, bits);
         Ok(self)
     }
 
@@ -601,6 +680,150 @@ mod tests {
         );
     }
 
+    /// Reference implementation of the store paths: one `store_bit` per bit,
+    /// which is what the builder did before the byte-aligned fast paths.
+    fn reference_bits(prefix: &[bool], bits: &[bool]) -> Cell {
+        let mut builder = CellBuilder::new();
+        for &bit in prefix.iter().chain(bits) {
+            builder = builder.store_bit(bit).unwrap();
+        }
+        builder.build().unwrap()
+    }
+
+    fn bits_of(data: &[u8], bit_len: usize) -> Vec<bool> {
+        (0..bit_len)
+            .map(|i| data[i / 8] >> (7 - i % 8) & 1 == 1)
+            .collect()
+    }
+
+    /// The byte-aligned fast paths of `store_slice` / `store_bits` /
+    /// `store_uint` / `store_cell` must produce exactly the bits the per-bit
+    /// implementation produces, at every starting offset.
+    #[test]
+    fn test_byte_aligned_fast_paths_match_bit_by_bit() {
+        let payload: Vec<u8> = (0u8..37).map(|i| i.wrapping_mul(37) ^ 0xA5).collect();
+        for prefix_len in 0..=17usize {
+            let prefix: Vec<bool> = (0..prefix_len).map(|i| i % 3 == 0).collect();
+            let mut start = CellBuilder::new();
+            for &bit in &prefix {
+                start = start.store_bit(bit).unwrap();
+            }
+
+            // store_slice (whole bytes).
+            let expected = reference_bits(&prefix, &bits_of(&payload, payload.len() * 8));
+            let actual = start
+                .clone()
+                .store_slice(&payload)
+                .unwrap()
+                .build()
+                .unwrap();
+            assert_eq!(actual.data(), expected.data(), "store_slice @ {prefix_len}");
+            assert_eq!(actual.bit_len(), expected.bit_len());
+            assert_eq!(actual.repr_hash(), expected.repr_hash());
+
+            // store_bits, aligned and unaligned lengths.
+            for bit_len in [0usize, 1, 7, 8, 9, 63, 64, 100, 293] {
+                let expected = reference_bits(&prefix, &bits_of(&payload, bit_len));
+                let actual = start
+                    .clone()
+                    .store_bits(&payload, bit_len)
+                    .unwrap()
+                    .build()
+                    .unwrap();
+                assert_eq!(
+                    actual.data(),
+                    expected.data(),
+                    "store_bits({bit_len}) @ {prefix_len}"
+                );
+                assert_eq!(actual.bit_len(), expected.bit_len());
+            }
+
+            // store_uint at every width that fits, aligned and unaligned.
+            for bits in [0u16, 1, 4, 8, 15, 16, 32, 64, 127, 128] {
+                let raw = u128::from_be_bytes(payload[..16].try_into().unwrap());
+                let value = if bits == 0 {
+                    0
+                } else {
+                    raw >> (128 - u32::from(bits))
+                };
+                let value_bits: Vec<bool> = (0..bits)
+                    .rev()
+                    .map(|i| value >> i & 1 == 1)
+                    .collect::<Vec<_>>();
+                let expected = reference_bits(&prefix, &value_bits);
+                let actual = start
+                    .clone()
+                    .store_uint(value, bits)
+                    .unwrap()
+                    .build()
+                    .unwrap();
+                assert_eq!(
+                    actual.data(),
+                    expected.data(),
+                    "store_uint({value}, {bits}) @ {prefix_len}"
+                );
+                assert_eq!(actual.bit_len(), expected.bit_len());
+            }
+
+            // store_cell inlines through the same path.
+            let inner = CellBuilder::new()
+                .store_slice(&payload[..11])
+                .unwrap()
+                .store_bit(true)
+                .unwrap()
+                .build()
+                .unwrap();
+            let expected = reference_bits(&prefix, &bits_of(inner.data(), 89));
+            let actual = start.clone().store_cell(&inner).unwrap().build().unwrap();
+            assert_eq!(actual.data(), expected.data(), "store_cell @ {prefix_len}");
+            assert_eq!(actual.bit_len(), expected.bit_len());
+        }
+    }
+
+    /// The capacity and range errors of the fast paths match the per-bit
+    /// behaviour: `ValueOutOfRange` wins over `CellOverflow` in `store_bits`,
+    /// and an over-long payload never partially fills the cell.
+    #[test]
+    fn test_fast_paths_report_the_same_errors() {
+        let full = |bits: u16| {
+            let mut builder = CellBuilder::new();
+            for _ in 0..bits {
+                builder = builder.store_bit(false).unwrap();
+            }
+            builder
+        };
+        assert_eq!(
+            full(1016).store_slice(&[0u8; 2]).unwrap_err(),
+            CellError::CellOverflow
+        );
+        assert!(full(1015).store_slice(&[0u8; 1]).is_ok());
+        assert_eq!(
+            full(0).store_slice(&[0u8; 128]).unwrap_err(),
+            CellError::CellOverflow
+        );
+        assert_eq!(
+            full(0).store_bits(&[0u8; 4], 33).unwrap_err(),
+            CellError::ValueOutOfRange
+        );
+        // Short data *and* an over-capacity length: range error wins.
+        assert_eq!(
+            full(0).store_bits(&[0u8; 4], 5000).unwrap_err(),
+            CellError::ValueOutOfRange
+        );
+        assert_eq!(
+            full(0).store_bits(&[0u8; 1024], 1024).unwrap_err(),
+            CellError::CellOverflow
+        );
+        assert_eq!(
+            full(1000).store_uint(0, 24).unwrap_err(),
+            CellError::CellOverflow
+        );
+        assert_eq!(
+            full(1000).store_uint(1 << 30, 24).unwrap_err(),
+            CellError::ValueOutOfRange
+        );
+    }
+
     #[test]
     fn test_store_cell_inlines_bits_and_refs() {
         let inner = CellBuilder::new()
@@ -632,6 +855,43 @@ mod tests {
             .build()
             .unwrap();
         assert_eq!(cell.bit_len(), 267);
+    }
+
+    /// The documented hex form and the base64 form of the same BoC must
+    /// deserialize to the same cell (hex is probed first because every
+    /// even-length hex string also decodes as standard base64).
+    #[cfg(feature = "serde_json")]
+    #[test]
+    fn test_cell_deserializes_hex_and_base64() {
+        use base64::engine::general_purpose::{STANDARD, URL_SAFE};
+        use base64::Engine;
+
+        for cell in [
+            Cell::empty(),
+            CellBuilder::new()
+                .store_uint(0xDEAD_BEEF, 32)
+                .unwrap()
+                .store_ref(Cell::empty())
+                .unwrap()
+                .build()
+                .unwrap(),
+        ] {
+            for with_crc in [false, true] {
+                let boc = super::super::boc::serialize_boc(&cell, with_crc);
+                let hex_json = format!("\"{}\"", hex::encode(&boc));
+                let base64_json = format!("\"{}\"", STANDARD.encode(&boc));
+                let url_safe_json = format!("\"{}\"", URL_SAFE.encode(&boc));
+                for json in [&hex_json, &base64_json, &url_safe_json] {
+                    let parsed: Cell = serde_json::from_str(json).unwrap();
+                    assert_eq!(parsed, cell, "failed for {json}");
+                }
+            }
+        }
+        // The empty-cell hex vector from the BoC spec tests.
+        let parsed: Cell = serde_json::from_str("\"b5ee9c72010101010002000000\"").unwrap();
+        assert_eq!(parsed, Cell::empty());
+        // Neither hex nor base64.
+        assert!(serde_json::from_str::<Cell>("\"not a bag of cells!\"").is_err());
     }
 
     #[cfg(feature = "serde_json")]

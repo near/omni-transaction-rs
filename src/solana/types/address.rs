@@ -202,8 +202,16 @@ impl<'de, const N: usize> de::Visitor<'de> for Base58Visitor<N> {
         let mut arr = [0u8; N];
         for (i, elem) in arr.iter_mut().enumerate() {
             *elem = seq
-                .next_element()?
+                .next_element::<u8>()?
                 .ok_or_else(|| de::Error::invalid_length(i, &self))?;
+        }
+        // A sequence longer than `N` must be rejected here rather than left
+        // to the data format: keeping only the first `N` bytes would yield a
+        // *different* key than the one supplied, and a format whose
+        // `SeqAccess` does not verify that the visitor drained it would
+        // accept that silently. Same idiom as the Aptos/Sui address types.
+        if seq.next_element::<u8>()?.is_some() {
+            return Err(de::Error::custom(format!("expected exactly {N} bytes")));
         }
         Ok(arr)
     }
@@ -285,6 +293,53 @@ mod tests {
         let bytes_json = serde_json::to_string(&address.to_bytes().to_vec()).unwrap();
         let parsed_from_bytes: SolanaAddress = serde_json::from_str(&bytes_json).unwrap();
         assert_eq!(parsed_from_bytes, address);
+    }
+
+    /// A byte-array form of the wrong length must be rejected by the visitor
+    /// itself, with an error naming the expected length (`serde_json` would
+    /// otherwise report an over-long array as "trailing characters", and a
+    /// format that does not check for undrained sequence elements would
+    /// silently truncate to a *different* key).
+    #[test]
+    #[cfg(feature = "serde_json")]
+    fn test_address_serde_rejects_wrong_length_byte_array() {
+        let exact = (0u16..32).map(|i| i.to_string()).collect::<Vec<_>>();
+        let exact_json = format!("[{}]", exact.join(","));
+        let parsed: SolanaAddress = serde_json::from_str(&exact_json).unwrap();
+        assert_eq!(parsed.to_bytes()[31], 31);
+
+        // One element too many: must not yield the first 32 bytes.
+        let too_long = (0u16..33).map(|i| i.to_string()).collect::<Vec<_>>();
+        let err = serde_json::from_str::<SolanaAddress>(&format!("[{}]", too_long.join(",")))
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("expected exactly 32 bytes"),
+            "unexpected error: {err}"
+        );
+
+        // Well past the end (the case reported: 40 elements).
+        let way_too_long = (0u16..40).map(|i| i.to_string()).collect::<Vec<_>>();
+        assert!(
+            serde_json::from_str::<SolanaAddress>(&format!("[{}]", way_too_long.join(",")))
+                .is_err()
+        );
+
+        // One element too few.
+        let too_short = (0u16..31).map(|i| i.to_string()).collect::<Vec<_>>();
+        assert!(
+            serde_json::from_str::<SolanaAddress>(&format!("[{}]", too_short.join(","))).is_err()
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde_json")]
+    fn test_blockhash_serde_rejects_wrong_length_byte_array() {
+        let exact = (0u16..32).map(|i| i.to_string()).collect::<Vec<_>>();
+        assert!(serde_json::from_str::<Blockhash>(&format!("[{}]", exact.join(","))).is_ok());
+        let too_long = (0u16..33).map(|i| i.to_string()).collect::<Vec<_>>();
+        assert!(serde_json::from_str::<Blockhash>(&format!("[{}]", too_long.join(","))).is_err());
+        let too_short = (0u16..31).map(|i| i.to_string()).collect::<Vec<_>>();
+        assert!(serde_json::from_str::<Blockhash>(&format!("[{}]", too_short.join(","))).is_err());
     }
 
     #[test]

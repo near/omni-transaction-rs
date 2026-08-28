@@ -22,6 +22,12 @@ use serde::{Deserialize, Deserializer, Serialize};
 ///   `POST /v1/transactions` with
 ///   `Content-Type: application/x.aptos.signed_transaction+bcs`.
 ///
+/// In JSON (the `serde` feature) the `u64` fields are **emitted as decimal
+/// strings** and accepted as either numbers or strings, matching the Aptos
+/// REST API: a bare JSON number above 2^53 does not survive a JavaScript
+/// `JSON.parse`/`JSON.stringify` round trip, which would silently change the
+/// signing message. The BCS encoding is unaffected.
+///
 /// ###### Example:
 ///
 /// ```rust
@@ -58,18 +64,34 @@ pub struct AptosTransaction {
     /// The sender's account address (32 raw bytes on the wire).
     pub sender: AccountAddress,
     /// The sequence number of the sender's account.
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u64"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "serialize_u64", deserialize_with = "deserialize_u64")
+    )]
+    #[cfg_attr(feature = "schemars", schemars(with = "String"))]
     pub sequence_number: u64,
     /// What the transaction executes.
     pub payload: TransactionPayload,
     /// Maximal gas units to spend for this transaction.
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u64"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "serialize_u64", deserialize_with = "deserialize_u64")
+    )]
+    #[cfg_attr(feature = "schemars", schemars(with = "String"))]
     pub max_gas_amount: u64,
     /// Price per gas unit, in octas.
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u64"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "serialize_u64", deserialize_with = "deserialize_u64")
+    )]
+    #[cfg_attr(feature = "schemars", schemars(with = "String"))]
     pub gas_unit_price: u64,
     /// Expiration as unix seconds; must be in the future when executed.
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_u64"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "serialize_u64", deserialize_with = "deserialize_u64")
+    )]
+    #[cfg_attr(feature = "schemars", schemars(with = "String"))]
     pub expiration_timestamp_secs: u64,
     /// Chain id for replay protection (mainnet = 1, testnet = 2).
     pub chain_id: u8,
@@ -140,7 +162,9 @@ impl AptosTransaction {
     /// Builds an [`AptosTransaction`] from its JSON representation.
     ///
     /// Addresses, keys and signatures are `0x`-prefixed hex strings; `u64`
-    /// fields accept either JSON numbers or decimal strings.
+    /// fields accept either JSON numbers or decimal strings (serialization
+    /// always emits decimal strings, so a round trip is lossless even for
+    /// values above 2^53).
     ///
     /// # Errors
     ///
@@ -179,6 +203,20 @@ impl AptosTransaction {
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
     }
+}
+
+/// Serializes a `u64` as a decimal string.
+///
+/// The counterpart of [`deserialize_u64`]: JSON numbers lose precision above
+/// 2^53, so emitting `18446744073709551615` as a number lets a JavaScript
+/// client's `JSON.parse`/`JSON.stringify` round trip turn it into
+/// `18446744073709552000` and sign a different transaction.
+#[cfg(feature = "serde")]
+fn serialize_u64<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.collect_str(value)
 }
 
 /// Deserializes a `u64` from either a JSON number or a decimal string
@@ -474,6 +512,85 @@ mod tests {
         }"#;
         let tx = AptosTransaction::from_json(json).unwrap();
         assert_eq!(hex::encode(tx.build_for_signing()), SIGNING_MESSAGE_VECTOR);
+    }
+
+    /// Every `u64` field must leave as a decimal string, and a `u64::MAX`
+    /// expiry must come back bit-for-bit (a bare JSON number would be
+    /// mangled to 18446744073709552000 by a JavaScript client).
+    #[test]
+    #[cfg(feature = "serde_json")]
+    fn test_json_serializes_u64_fields_as_decimal_strings() {
+        let tx = base_tx(TransactionPayload::EntryFunction(EntryFunction::new(
+            ModuleId::new(
+                AccountAddress::from_hex("0x1222").unwrap(),
+                Identifier::new("aptos_coin").unwrap(),
+            ),
+            Identifier::new("transfer").unwrap(),
+            vec![],
+            transfer_args(),
+        )));
+        assert_eq!(tx.expiration_timestamp_secs, u64::MAX);
+
+        let json = serde_json::to_string(&tx).unwrap();
+        assert!(
+            json.contains(r#""expiration_timestamp_secs":"18446744073709551615""#),
+            "u64 must be quoted, got {json}"
+        );
+        assert!(json.contains(r#""sequence_number":"0""#), "{json}");
+        assert!(json.contains(r#""max_gas_amount":"2000""#), "{json}");
+        assert!(json.contains(r#""gas_unit_price":"0""#), "{json}");
+        // No bare number above 2^53 anywhere in the document.
+        assert!(!json.contains("18446744073709551615,"), "{json}");
+
+        let back = AptosTransaction::from_json(&json).unwrap();
+        assert_eq!(back.expiration_timestamp_secs, u64::MAX);
+        assert_eq!(back, tx);
+        assert_eq!(back.build_for_signing(), tx.build_for_signing());
+    }
+
+    /// Both JSON encodings of a `u64` must parse to the same transaction, so
+    /// existing clients that send numbers keep working.
+    #[test]
+    #[cfg(feature = "serde_json")]
+    fn test_from_json_accepts_numbers_and_strings_alike() {
+        fn json_with(sequence_number: &str, expiration: &str) -> String {
+            format!(
+                r#"{{
+                    "sender": "0xa550c18",
+                    "sequence_number": {sequence_number},
+                    "payload": {{
+                        "EntryFunction": {{
+                            "module": {{ "address": "0x1222", "name": "aptos_coin" }},
+                            "function": "transfer",
+                            "ty_args": [],
+                            "args": [
+                                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,221],
+                                [1,0,0,0,0,0,0,0]
+                            ]
+                        }}
+                    }},
+                    "max_gas_amount": 2000,
+                    "gas_unit_price": 0,
+                    "expiration_timestamp_secs": {expiration},
+                    "chain_id": 4
+                }}"#
+            )
+        }
+
+        let from_numbers = AptosTransaction::from_json(&json_with("0", "18446744073709551615"))
+            .expect("numbers must still parse");
+        let from_strings =
+            AptosTransaction::from_json(&json_with(r#""0""#, r#""18446744073709551615""#))
+                .expect("strings must still parse");
+        assert_eq!(from_numbers, from_strings);
+        assert_eq!(
+            hex::encode(from_numbers.build_for_signing()),
+            SIGNING_MESSAGE_VECTOR
+        );
+        assert_eq!(
+            hex::encode(from_strings.build_for_signing()),
+            SIGNING_MESSAGE_VECTOR
+        );
     }
 
     #[test]

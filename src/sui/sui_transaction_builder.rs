@@ -9,10 +9,10 @@ use crate::transaction_builder::TxBuilder;
 /// A builder for [`SuiTransaction`].
 ///
 /// Mandatory fields: [`Self::sender`], the programmable transaction block
-/// ([`Self::programmable`] or [`Self::kind`]), [`Self::gas_price`] and
-/// [`Self::gas_budget`]. The gas owner defaults to the sender (set
-/// [`Self::gas_owner`] for sponsored transactions), the gas payment to an
-/// empty list and the expiration to [`TransactionExpiration::None`].
+/// ([`Self::programmable`] or [`Self::kind`]), [`Self::gas_payment`] (at
+/// least one gas coin), [`Self::gas_price`] and [`Self::gas_budget`]. The
+/// gas owner defaults to the sender (set [`Self::gas_owner`] for sponsored
+/// transactions) and the expiration to [`TransactionExpiration::None`].
 ///
 /// ###### Example:
 ///
@@ -91,8 +91,11 @@ impl SuiTransactionBuilder {
         self
     }
 
-    /// The coin objects paying for gas. Fetch fresh `(id, version, digest)`
-    /// references from RPC: they become stale if the objects are mutated.
+    /// The coin objects paying for gas. Mandatory and non-empty: every Sui
+    /// transaction must reference at least one `Coin<SUI>` gas object, and
+    /// validators reject one with an empty gas payment. Fetch fresh
+    /// `(id, version, digest)` references from RPC: they become stale if the
+    /// objects are mutated.
     pub fn gas_payment(mut self, gas_payment: Vec<ObjectRef>) -> Self {
         self.gas_payment = Some(gas_payment);
         self
@@ -130,17 +133,26 @@ impl TxBuilder<SuiTransaction> for SuiTransactionBuilder {
     /// # Panics
     ///
     /// Panics if a mandatory field (sender, programmable transaction,
-    /// gas price or gas budget) is missing.
+    /// gas payment, gas price or gas budget) is missing, or if the gas
+    /// payment is an empty list: a Sui transaction must reference at least
+    /// one `Coin<SUI>` gas object, so an empty payment would only be
+    /// rejected by the validators after an MPC signature was paid for.
     fn build(&self) -> SuiTransaction {
         let sender = self.sender.expect("sender is mandatory");
+        let kind = self
+            .kind
+            .clone()
+            .expect("programmable transaction is mandatory");
+        let payment = self.gas_payment.clone().expect("gas_payment is mandatory");
+        assert!(
+            !payment.is_empty(),
+            "gas_payment must contain at least one gas coin"
+        );
         SuiTransaction {
-            kind: self
-                .kind
-                .clone()
-                .expect("programmable transaction is mandatory"),
+            kind,
             sender,
             gas_data: GasData {
-                payment: self.gas_payment.clone().unwrap_or_default(),
+                payment,
                 owner: self.gas_owner.unwrap_or(sender),
                 price: self.gas_price.expect("gas_price is mandatory"),
                 budget: self.gas_budget.expect("gas_budget is mandatory"),
@@ -155,6 +167,15 @@ mod tests {
     use super::*;
     use crate::sui::types::{Argument, ObjectDigest};
     use crate::sui::utils::parse_sui_address;
+
+    /// The single gas coin used by the golden vector.
+    fn gas_coin() -> Vec<ObjectRef> {
+        vec![ObjectRef::new(
+            parse_sui_address("0x1"),
+            2,
+            ObjectDigest::new([0x63u8; 32]),
+        )]
+    }
 
     fn build_v1() -> SuiTransaction {
         SuiTransactionBuilder::new()
@@ -175,11 +196,7 @@ mod tests {
                     },
                 ],
             )
-            .gas_payment(vec![ObjectRef::new(
-                parse_sui_address("0x1"),
-                2,
-                ObjectDigest::new([0x63u8; 32]),
-            )])
+            .gas_payment(gas_coin())
             .gas_price(1000)
             .gas_budget(5_000_000)
             .build()
@@ -205,6 +222,7 @@ mod tests {
         let sponsored = SuiTransactionBuilder::new()
             .sender(parse_sui_address("0x2"))
             .programmable(vec![], vec![])
+            .gas_payment(gas_coin())
             .gas_owner(sponsor)
             .gas_price(1000)
             .gas_budget(5_000_000)
@@ -217,6 +235,7 @@ mod tests {
     fn test_build_panics_without_sender() {
         let _ = SuiTransactionBuilder::new()
             .programmable(vec![], vec![])
+            .gas_payment(gas_coin())
             .gas_price(1000)
             .gas_budget(5_000_000)
             .build();
@@ -227,6 +246,33 @@ mod tests {
     fn test_build_panics_without_kind() {
         let _ = SuiTransactionBuilder::new()
             .sender(parse_sui_address("0x2"))
+            .gas_payment(gas_coin())
+            .gas_price(1000)
+            .gas_budget(5_000_000)
+            .build();
+    }
+
+    /// A transaction must reference at least one `Coin<SUI>` gas object, so an
+    /// unset gas payment must fail here and not at the validators.
+    #[test]
+    #[should_panic(expected = "gas_payment is mandatory")]
+    fn test_build_panics_without_gas_payment() {
+        let _ = SuiTransactionBuilder::new()
+            .sender(parse_sui_address("0x2"))
+            .programmable(vec![], vec![])
+            .gas_price(1000)
+            .gas_budget(5_000_000)
+            .build();
+    }
+
+    /// An explicitly empty gas payment is just as unusable as an unset one.
+    #[test]
+    #[should_panic(expected = "gas_payment must contain at least one gas coin")]
+    fn test_build_panics_with_empty_gas_payment() {
+        let _ = SuiTransactionBuilder::new()
+            .sender(parse_sui_address("0x2"))
+            .programmable(vec![], vec![])
+            .gas_payment(vec![])
             .gas_price(1000)
             .gas_budget(5_000_000)
             .build();
@@ -238,6 +284,7 @@ mod tests {
         let _ = SuiTransactionBuilder::new()
             .sender(parse_sui_address("0x2"))
             .programmable(vec![], vec![])
+            .gas_payment(gas_coin())
             .gas_budget(5_000_000)
             .build();
     }
@@ -248,6 +295,7 @@ mod tests {
         let _ = SuiTransactionBuilder::new()
             .sender(parse_sui_address("0x2"))
             .programmable(vec![], vec![])
+            .gas_payment(gas_coin())
             .gas_price(1000)
             .build();
     }

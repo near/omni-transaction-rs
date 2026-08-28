@@ -8,11 +8,30 @@ use schemars::JsonSchema;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+/// Maximum byte length of an identifier that can appear in an Aptos module.
+///
+/// `move-core-types`' `identifier::is_valid` (the shared Move origin) only
+/// checks the charset and imposes no length limit; the length is bounded by
+/// the module binary format instead. Aptos' `move-binary-format`
+/// `file_format_common::IDENTIFIER_SIZE_MAX` is 255 and the on-chain VM
+/// deserializer uses it whenever the `LIMIT_MAX_IDENTIFIER_LENGTH` feature
+/// flag is on (mainnet since aptos-node v1.8; before it the legacy limit was
+/// `LEGACY_IDENTIFIER_SIZE_MAX` = 65535). No loadable Aptos module can
+/// therefore expose a module, function, struct or field name longer than
+/// this, so a longer identifier can never name a callable target.
+///
+/// Note this differs from Sui, whose protocol config caps
+/// `max_move_identifier_len` at 128 — see
+/// `omni_transaction::sui::types::MAX_IDENTIFIER_LENGTH`. The two limits are
+/// per-chain and deliberately not shared.
+pub const MAX_IDENTIFIER_LENGTH: usize = 255;
+
 /// A valid Move identifier (module or function name).
 ///
 /// Identifiers match `[a-zA-Z][a-zA-Z0-9_]*` or `_[a-zA-Z0-9_]+` (a lone `_`
 /// is not a valid identifier), mirroring `move-core-types`'
-/// `identifier::is_valid`.
+/// `identifier::is_valid`, and are at most
+/// [`MAX_IDENTIFIER_LENGTH`] bytes long (Aptos' module binary format limit).
 ///
 /// In BCS an identifier is a string: ULEB128 byte length followed by the
 /// UTF-8 bytes. The JSON (serde) representation is a plain string.
@@ -20,7 +39,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub struct Identifier(String);
 
 impl Identifier {
-    /// Creates an identifier, validating the Move identifier charset.
+    /// Creates an identifier, validating the Move identifier charset and the
+    /// [`MAX_IDENTIFIER_LENGTH`] byte cap.
     ///
     /// # Errors
     ///
@@ -46,9 +66,13 @@ impl Identifier {
     }
 }
 
-/// Returns `true` if `name` matches `[a-zA-Z][a-zA-Z0-9_]*` or `_[a-zA-Z0-9_]+`.
+/// Returns `true` if `name` matches `[a-zA-Z][a-zA-Z0-9_]*` or
+/// `_[a-zA-Z0-9_]+` and is at most [`MAX_IDENTIFIER_LENGTH`] bytes long.
 fn is_valid_identifier(name: &str) -> bool {
     let bytes = name.as_bytes();
+    if bytes.len() > MAX_IDENTIFIER_LENGTH {
+        return false;
+    }
     let rest = match bytes.first() {
         Some(b'a'..=b'z' | b'A'..=b'Z') => &bytes[1..],
         Some(b'_') if bytes.len() > 1 => &bytes[1..],
@@ -91,7 +115,7 @@ impl fmt::Display for IdentifierParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "invalid Move identifier: expected [a-zA-Z][a-zA-Z0-9_]* or _[a-zA-Z0-9_]+"
+            "invalid Move identifier: expected [a-zA-Z][a-zA-Z0-9_]* or _[a-zA-Z0-9_]+ of at most 255 bytes"
         )
     }
 }
@@ -184,6 +208,20 @@ mod tests {
         assert!(Identifier::new("has-dash").is_err());
         assert!(Identifier::new("has space").is_err());
         assert!(Identifier::new("emoji🚀").is_err());
+    }
+
+    /// Aptos bounds identifiers by its module binary format, not by
+    /// `move-core-types`' charset check: `IDENTIFIER_SIZE_MAX` = 255 bytes
+    /// (the pre-`LIMIT_MAX_IDENTIFIER_LENGTH` legacy limit was 65535). Sui's
+    /// own limit is 128 and lives in its own module.
+    #[test]
+    fn test_identifier_length_limit_is_aptos_255_bytes() {
+        assert_eq!(MAX_IDENTIFIER_LENGTH, 255);
+        assert!(Identifier::new("a".repeat(255)).is_ok());
+        // Longer than any Aptos module can expose, so it can never resolve.
+        assert!(Identifier::new("a".repeat(256)).is_err());
+        // Above Sui's 128-byte cap but valid here: the limits are per-chain.
+        assert!(Identifier::new("a".repeat(129)).is_ok());
     }
 
     #[test]
