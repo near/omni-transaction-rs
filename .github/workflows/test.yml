@@ -1,4 +1,5 @@
 name: Test
+# Temporary probe: verify pull-request CI triggers without changing behavior.
 
 on:
   push:
