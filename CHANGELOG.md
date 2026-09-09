@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/near/omni-transaction-rs/compare/v0.4.0...v0.5.0) - 2026-09-09
+
+### Added
+
+- add Solana, Aptos, Sui, Zcash, Starknet and TON transaction builders ([#1](https://github.com/near/omni-transaction-rs/pull/1))
+
+### Other
+
+- use trusted publishing for omni-transaction ([#2](https://github.com/near/omni-transaction-rs/pull/2))
+- add DevEx to CODEOWNERS ([#50](https://github.com/near/omni-transaction-rs/pull/50))
+
 ## [0.4.0](https://github.com/near/omni-transaction-rs/compare/v0.3.2...v0.4.0) - 2025-12-20
 
 ### Added
