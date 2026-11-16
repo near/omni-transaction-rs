@@ -90,9 +90,13 @@ impl EVMTransaction {
 
         self.encode_fields(&mut rlp_stream);
 
+        // `r` and `s` are RLP integers, which must be minimal: callers usually pass fixed
+        // 32-byte scalars (as MPC signers return them), so strip leading zero bytes. Without
+        // this, about 1 in 128 signatures yields a non-canonical transaction that go-ethereum
+        // rejects (`rlp: non-canonical integer (leading zero bytes)`).
         rlp_stream.append(&signature.v);
-        rlp_stream.append(&signature.r);
-        rlp_stream.append(&signature.s);
+        rlp_stream.append(&trim_leading_zeros(&signature.r));
+        rlp_stream.append(&trim_leading_zeros(&signature.s));
 
         rlp_stream.finalize_unbounded_list();
 
@@ -186,6 +190,12 @@ impl EVMTransaction {
             access_list: vec![],
         })
     }
+}
+
+/// Big-endian integer bytes without leading zeros (the canonical RLP form; zero is empty).
+fn trim_leading_zeros(bytes: &[u8]) -> &[u8] {
+    let first = bytes.iter().position(|b| *b != 0).unwrap_or(bytes.len());
+    &bytes[first..]
 }
 
 fn parse_u64(value: &str) -> Result<u64, std::num::ParseIntError> {
@@ -521,6 +531,69 @@ mod tests {
             omni_encoded_with_signature.len()
         );
         assert_eq!(tx_encoded_with_signature, omni_encoded_with_signature);
+    }
+
+    #[test]
+    fn test_build_with_signature_strips_leading_zeros_in_r_and_s_against_alloy() {
+        // A 32-byte r or s starts with 0x00 for about 1 in 128 signatures. RLP integers must be
+        // minimal, so the encoding has to match alloy's even when callers pass fixed 32 bytes.
+        let tx = TxEip1559 {
+            chain_id: 11_155_111,
+            nonce: 7,
+            gas_limit: 60_000,
+            to: address!("000000000000000000000000000000000000ae61").into(),
+            value: U256::ZERO,
+            input: hex!("8456cb59").into(),
+            max_fee_per_gas: 30_000_000_000,
+            max_priority_fee_per_gas: 1_500_000_000,
+            access_list: AccessList::default(),
+        };
+        let tx_omni = EVMTransaction {
+            chain_id: 11_155_111,
+            nonce: 7,
+            to: Some(parse_eth_address(
+                "000000000000000000000000000000000000ae61",
+            )),
+            value: 0,
+            input: hex!("8456cb59").to_vec(),
+            gas_limit: 60_000,
+            max_fee_per_gas: 30_000_000_000,
+            max_priority_fee_per_gas: 1_500_000_000,
+            access_list: vec![],
+        };
+
+        for (r, s, parity) in [
+            // leading zero byte in r
+            (
+                b256!("00a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f"),
+                b256!("25e7109ceb98168d95b09b18bbf6b685130e0562f233877d492b94eee0c5b6d1"),
+                false,
+            ),
+            // two leading zero bytes in s
+            (
+                b256!("840cfc572845f5786e702984c2a582528cad4b49b2a10b9db1be7fca90058565"),
+                b256!("00002f4c6e8a0b1d3f5e7a9c0b2d4f6e8a1c3e5f7a9b0d2f4e6a8c1e3f5a7b9d"),
+                true,
+            ),
+            // both
+            (
+                b256!("0011223344556677889900112233445566778899001122334455667788990011"),
+                b256!("0000000000000000000000000000000000000000000000000000000000000001"),
+                false,
+            ),
+        ] {
+            let sig = Signature::from_scalars_and_parity(r, s, parity);
+            let mut expected = vec![];
+            tx.eip2718_encode(&sig, &mut expected);
+
+            let omni = tx_omni.build_with_signature(&OmniSignature {
+                v: u64::from(sig.v()),
+                r: sig.r().to_be_bytes::<32>().to_vec(),
+                s: sig.s().to_be_bytes::<32>().to_vec(),
+            });
+
+            assert_eq!(omni, expected, "r = {r}, s = {s}");
+        }
     }
 
     #[test]
